@@ -1,30 +1,15 @@
 import torch
 from torch import nn
 import numpy as np
-from keras.models import Model
-from keras import layers
-from keras.layers import Activation
-from keras.layers import Dense
-from keras.layers import Flatten
-from keras.layers import Input
-from keras.layers import BatchNormalization
-from keras.layers import Conv3D
-from keras.layers import MaxPooling3D
-from keras.layers import AveragePooling3D
-from keras.layers import Dropout
-from keras.layers import Reshape
-from keras.layers import Lambda
-from keras.layers import GlobalAveragePooling3D
-from keras.layers import Concatenate
-from keras.layers import ZeroPadding3D
-from keras import backend as K
+import torch.nn.functional as F
+
 
 def conv_T(in_planes, out_planes, stride=1, padding=1):
-    return nn.Conv3d(in_planes, out_planes, kernel_size=(1, 1, 3), stride=stride, padding=padding, bias=False)
+    return nn.Conv3d(in_planes, out_planes, kernel_size=(1, 1, 3), stride=(1, 1, 1), padding=(0, 0, 1), bias=False)
 
 
 def conv_S(in_planes, out_planes, stride=1, padding=1):
-    return nn.Conv3d(in_planes, out_planes, kernel_size=(3, 3, 1), stride=stride, padding=padding, bias=False)
+    return nn.Conv3d(in_planes, out_planes, kernel_size=(3, 3, 1), stride=(1, 1, 1), padding=(1, 1, 0), bias=False)
 
 
 '''
@@ -44,8 +29,7 @@ class Bottleneck(nn.Module):
     def __init__(self, inplane, midplane, stride, downsample=None, st_struc='A'):
         super(Bottleneck, self).__init__()
         self.st_struc = st_struc
-
-        self.conv1 = nn.Conv3d(inplane, midplane, kernel_size=1, stride=stride, bias=False)
+        self.conv1 = nn.Conv3d(inplane, midplane, kernel_size=(1, 1, 1), stride=stride, bias=False)
         self.bn1 = nn.BatchNorm3d(midplane)
 
         self.conv2 = conv_T(midplane, midplane)
@@ -66,7 +50,7 @@ class Bottleneck(nn.Module):
         self.conv9 = conv_S(midplane, midplane)
         self.bn9 = nn.BatchNorm3d(midplane)
 
-        self.conv10 = nn.Conv3d(midplane, midplane * self.extention, kernel_size=1, stride=1, bias=False)
+        self.conv10 = nn.Conv3d(midplane, midplane*self.extention, kernel_size=1, stride=1, bias=False)
         self.bn10 = nn.BatchNorm3d(midplane * self.extention)
         self.relu = nn.ReLU(inplace=False)
 
@@ -74,33 +58,51 @@ class Bottleneck(nn.Module):
         self.stride = stride
 
     def ST_A(self, T):
-        T1 = self.conv2(T)
+
+        self.conv2 = conv_T(64, 32)
+        self.bn2 = nn.BatchNorm3d(32)
+        self.conv6 = conv_S(32, 16)
+        self.bn6 = nn.BatchNorm3d(16)
+
+        T1 = self.conv_T(64, 32)(T)
         T1 = self.bn2(T1)
         T1 = self.relu(T1)
         ST1 = self.conv6(T1)
         ST1 = self.bn6(ST1)
-        print(ST1.size())
         ST1 = self.relu(ST1)
+        # ST1 = np.concatenate(())
 
+        self.conv3 = conv_T(32, 32)
+        self.bn3 = nn.BatchNorm3d(32)
+        self.conv7 = conv_S(32, 16)
+        self.bn7 = nn.BatchNorm3d(16)
         T2 = self.conv3(T1)
         T2 = self.bn3(T2)
         T2 = self.relu(T2)
+        # print(T2.size())
         ST2 = self.conv7(T2)
         ST2 = self.bn7(ST2)
-        print(ST2.size())
+        # print(ST2.size())
         ST2 = self.relu(ST2)
-        print(ST1.size())
-        print(ST2.size())
-        ST2 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach()), axis=2)
 
+        self.conv4 = conv_T(32, 32)
+        self.bn4 = nn.BatchNorm3d(32)
+        self.conv8 = conv_S(32, 16)
+        self.bn8 = nn.BatchNorm3d(16)
         T3 = self.conv4(T2)
         T3 = self.bn4(T3)
         T3 = self.relu(T3)
+        # print(T3.size())
         ST3 = self.conv8(T3)
         ST3 = self.bn8(ST3)
         ST3 = self.relu(ST3)
+        # print(ST3.size())
         # ST3 = np.concatenate(ST2, ST3)
 
+        self.conv5 = conv_T(32, 32)
+        self.bn5 = nn.BatchNorm3d(32)
+        self.conv9 = conv_S(32, 16)
+        self.bn9 = nn.BatchNorm3d(16)
         T4 = self.conv5(T3)
         T4 = self.bn5(T4)
         T4 = self.relu(T4)
@@ -108,9 +110,9 @@ class Bottleneck(nn.Module):
         ST4 = self.bn9(ST4)
         ST4 = self.relu(ST4)
         # ST4 = np.concatenate(ST3, ST4)
-        print(ST3.size())
-        print(ST4.size())
-        return ST4
+        # print(ST3.size())
+        # print(ST4.size())
+        return np.concatenate((ST1 + ST2 + ST3 + ST4), axis=1)
 
     def ST_B(self, Y):
         Y1 = self.conv6(Y)
@@ -126,7 +128,6 @@ class Bottleneck(nn.Module):
         ST2 = self.conv7(Y2)
         ST2 = self.bn7(ST2)
         ST2 = self.relu(ST2)
-        ST2 = np.concatenate(ST1, ST2)
 
         Y3 = self.conv8(Y2)
         Y3 = self.bn8(Y3)
@@ -134,7 +135,6 @@ class Bottleneck(nn.Module):
         ST3 = self.conv4(Y3)
         ST3 = self.bn4(ST3)
         ST3 = self.relu(ST3)
-        ST3 = np.concatenate(ST2, ST3)
 
         Y4 = self.conv5(Y3)
         Y4 = self.bn5(Y4)
@@ -142,9 +142,8 @@ class Bottleneck(nn.Module):
         ST4 = self.conv9(Y4)
         ST4 = self.bn9(ST4)
         ST4 = self.relu(ST4)
-        ST4 = np.concatenate(ST3, ST4)
 
-        return ST4
+        return ST1 + ST2 + ST3 + ST4
 
     def ST_C(self, S):
         S1 = self.conv6(S)
@@ -160,7 +159,6 @@ class Bottleneck(nn.Module):
         ST2 = self.conv3(S2)
         ST2 = self.bn3(ST2)
         ST2 = self.relu(ST2)
-        ST2 = np.concatenate(ST1, ST2)
 
         S3 = self.conv8(S2)
         S3 = self.bn8(S3)
@@ -168,7 +166,6 @@ class Bottleneck(nn.Module):
         ST3 = self.conv4(S3)
         ST3 = self.bn4(ST3)
         ST3 = self.relu(ST3)
-        ST3 = np.concatenate(ST2, ST3)
 
         S4 = self.conv9(S3)
         S4 = self.bn9(S4)
@@ -176,23 +173,27 @@ class Bottleneck(nn.Module):
         ST4 = self.conv5(S4)
         ST4 = self.bn5(ST4)
         ST4 = self.relu(ST4)
-        ST4 = np.concatenate(ST3, ST4)
 
-        return ST4
+        return ST1 + ST2 + ST3 + ST4
 
     def forward(self, x):
         # 参差数据
         residual = x
-
+        print(x.size())
         out = self.relu(self.bn1(self.conv1(x)))
+
         if self.st_struc == 'A':
             out = self.ST_A(out)
+            print(out.size())
         elif self.st_struc == 'B':
             out = self.ST_B(out)
+            print(out.size())
         elif self.st_struc == 'C':
             out = self.ST_C(out)
+            print(out.size())
 
         out = self.relu(self.bn10(self.conv10(out)))
+        print(out.size())
         out += residual
         out = self.relu(out)
 
@@ -214,16 +215,16 @@ class DMSN(nn.Module):
         self.layers = layers
 
         # stem的网络层
-        self.conv1 = nn.Conv3d(3, self.inplane, kernel_size=(7, 7, 7), stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv3d(3, self.inplane, kernel_size=(7, 7, 7), stride=(1, 2, 2), padding=(3, 3, 3), bias=False)
         self.bn1 = nn.BatchNorm3d(self.inplane)
         self.relu = nn.ReLU()
         self.maxpool = nn.MaxPool3d(kernel_size=(3, 3, 3), padding=1, stride=2)
 
         # 32，64，128，256是指扩大4倍之前的维度,即Identity Block的中间维度
-        self.stage1 = self.make_layer(self.block, 32, self.layers[0], shortcut_type=1, stride=1)
-        self.stage2 = self.make_layer(self.block, 64, self.layers[1], shortcut_type=2, stride=2)
-        self.stage3 = self.make_layer(self.block, 128, self.layers[2], shortcut_type=3, stride=2)
-        self.stage4 = self.make_layer(self.block, 256, self.layers[3], shortcut_type=4, stride=2)
+        self.stage1 = self.make_layer(self.block, 64, self.layers[0], shortcut_type=1, stride=1)
+        self.stage2 = self.make_layer(self.block, 128, self.layers[1], shortcut_type=2, stride=2)
+        self.stage3 = self.make_layer(self.block, 256, self.layers[2], shortcut_type=3, stride=2)
+        self.stage4 = self.make_layer(self.block, 512, self.layers[3], shortcut_type=4, stride=2)
 
         # 后续的网络
         self.avgpool = nn.AvgPool2d(7)
@@ -232,13 +233,17 @@ class DMSN(nn.Module):
     def forward(self, x):
 
         # stem部分:conv+bn+relu+maxpool
+        print(x.size())
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
+        # print(out.size())
         out = self.maxpool(out)
+        print(out.size())
 
         # block
         out = self.stage1(out)
+        print(out.size())
         out = self.stage2(out)
         out = self.stage3(out)
         out = self.stage4(out)
