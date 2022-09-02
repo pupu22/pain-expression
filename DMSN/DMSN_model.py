@@ -1,7 +1,34 @@
 import torch
 from torch import nn
+import numpy as np
+from keras.models import Model
+from keras import layers
+from keras.layers import Activation
+from keras.layers import Dense
+from keras.layers import Flatten
+from keras.layers import Input
+from keras.layers import BatchNormalization
+from keras.layers import Conv3D
+from keras.layers import MaxPooling3D
+from keras.layers import AveragePooling3D
+from keras.layers import Dropout
+from keras.layers import Reshape
+from keras.layers import Lambda
+from keras.layers import GlobalAveragePooling3D
+from keras.layers import Concatenate
+from keras.layers import ZeroPadding3D
+from keras import backend as K
+
+def conv_T(in_planes, out_planes, stride=1, padding=1):
+    return nn.Conv3d(in_planes, out_planes, kernel_size=(1, 1, 3), stride=stride, padding=padding, bias=False)
+
+
+def conv_S(in_planes, out_planes, stride=1, padding=1):
+    return nn.Conv3d(in_planes, out_planes, kernel_size=(3, 3, 1), stride=stride, padding=padding, bias=False)
+
 
 '''
+    DMSN中Bottleneck表示DMSN变体的基本结构
     Block的各个plane值：
         inplane：输入block的之前的通道数
         midplane：在block中间处理的时候的通道数（这个值是输出维度的1/4）
@@ -14,64 +41,189 @@ class Bottleneck(nn.Module):
     extention = 4
 
     # 定义初始化的网络和参数
-    def __init__(self, inplane, midplane, stride, downsample=None):
+    def __init__(self, inplane, midplane, stride, downsample=None, st_struc='A'):
         super(Bottleneck, self).__init__()
+        self.st_struc = st_struc
 
-        self.conv1 = nn.Conv2d(inplane, midplane, kernel_size=1, stride=stride, bias=False)
-        self.bn1 = nn.BatchNorm2d(midplane)
-        self.conv2 = nn.Conv2d(midplane, midplane, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(midplane)
-        self.conv3 = nn.Conv2d(midplane, midplane * self.extention, kernel_size=1, stride=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(midplane * self.extention)
+        self.conv1 = nn.Conv3d(inplane, midplane, kernel_size=1, stride=stride, bias=False)
+        self.bn1 = nn.BatchNorm3d(midplane)
+
+        self.conv2 = conv_T(midplane, midplane)
+        self.bn2 = nn.BatchNorm3d(midplane)
+        self.conv3 = conv_T(midplane, midplane)
+        self.bn3 = nn.BatchNorm3d(midplane)
+        self.conv4 = conv_T(midplane, midplane)
+        self.bn4 = nn.BatchNorm3d(midplane)
+        self.conv5 = conv_T(midplane, midplane)
+        self.bn5 = nn.BatchNorm3d(midplane)
+
+        self.conv6 = conv_S(midplane, midplane)
+        self.bn6 = nn.BatchNorm3d(midplane)
+        self.conv7 = conv_S(midplane, midplane)
+        self.bn7 = nn.BatchNorm3d(midplane)
+        self.conv8 = conv_S(midplane, midplane)
+        self.bn8 = nn.BatchNorm3d(midplane)
+        self.conv9 = conv_S(midplane, midplane)
+        self.bn9 = nn.BatchNorm3d(midplane)
+
+        self.conv10 = nn.Conv3d(midplane, midplane * self.extention, kernel_size=1, stride=1, bias=False)
+        self.bn10 = nn.BatchNorm3d(midplane * self.extention)
         self.relu = nn.ReLU(inplace=False)
 
         self.downsample = downsample
         self.stride = stride
 
+    def ST_A(self, T):
+        T1 = self.conv2(T)
+        T1 = self.bn2(T1)
+        T1 = self.relu(T1)
+        ST1 = self.conv6(T1)
+        ST1 = self.bn6(ST1)
+        print(ST1.size())
+        ST1 = self.relu(ST1)
+
+        T2 = self.conv3(T1)
+        T2 = self.bn3(T2)
+        T2 = self.relu(T2)
+        ST2 = self.conv7(T2)
+        ST2 = self.bn7(ST2)
+        print(ST2.size())
+        ST2 = self.relu(ST2)
+        print(ST1.size())
+        print(ST2.size())
+        ST2 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach()), axis=2)
+
+        T3 = self.conv4(T2)
+        T3 = self.bn4(T3)
+        T3 = self.relu(T3)
+        ST3 = self.conv8(T3)
+        ST3 = self.bn8(ST3)
+        ST3 = self.relu(ST3)
+        # ST3 = np.concatenate(ST2, ST3)
+
+        T4 = self.conv5(T3)
+        T4 = self.bn5(T4)
+        T4 = self.relu(T4)
+        ST4 = self.conv9(T4)
+        ST4 = self.bn9(ST4)
+        ST4 = self.relu(ST4)
+        # ST4 = np.concatenate(ST3, ST4)
+        print(ST3.size())
+        print(ST4.size())
+        return ST4
+
+    def ST_B(self, Y):
+        Y1 = self.conv6(Y)
+        Y1 = self.bn6(Y1)
+        Y1 = self.relu(Y1)
+        ST1 = self.conv2(Y1)
+        ST1 = self.bn2(ST1)
+        ST1 = self.relu(ST1)
+
+        Y2 = self.conv3(Y1)
+        Y2 = self.bn3(Y2)
+        Y2 = self.relu(Y2)
+        ST2 = self.conv7(Y2)
+        ST2 = self.bn7(ST2)
+        ST2 = self.relu(ST2)
+        ST2 = np.concatenate(ST1, ST2)
+
+        Y3 = self.conv8(Y2)
+        Y3 = self.bn8(Y3)
+        Y3 = self.relu(Y3)
+        ST3 = self.conv4(Y3)
+        ST3 = self.bn4(ST3)
+        ST3 = self.relu(ST3)
+        ST3 = np.concatenate(ST2, ST3)
+
+        Y4 = self.conv5(Y3)
+        Y4 = self.bn5(Y4)
+        Y4 = self.relu(Y4)
+        ST4 = self.conv9(Y4)
+        ST4 = self.bn9(ST4)
+        ST4 = self.relu(ST4)
+        ST4 = np.concatenate(ST3, ST4)
+
+        return ST4
+
+    def ST_C(self, S):
+        S1 = self.conv6(S)
+        S1 = self.bn6(S1)
+        S1 = self.relu(S1)
+        ST1 = self.conv2(S1)
+        ST1 = self.bn2(ST1)
+        ST1 = self.relu(ST1)
+
+        S2 = self.conv7(S1)
+        S2 = self.bn7(S2)
+        S2 = self.relu(S2)
+        ST2 = self.conv3(S2)
+        ST2 = self.bn3(ST2)
+        ST2 = self.relu(ST2)
+        ST2 = np.concatenate(ST1, ST2)
+
+        S3 = self.conv8(S2)
+        S3 = self.bn8(S3)
+        S3 = self.relu(S3)
+        ST3 = self.conv4(S3)
+        ST3 = self.bn4(ST3)
+        ST3 = self.relu(ST3)
+        ST3 = np.concatenate(ST2, ST3)
+
+        S4 = self.conv9(S3)
+        S4 = self.bn9(S4)
+        S4 = self.relu(S4)
+        ST4 = self.conv5(S4)
+        ST4 = self.bn5(ST4)
+        ST4 = self.relu(ST4)
+        ST4 = np.concatenate(ST3, ST4)
+
+        return ST4
+
     def forward(self, x):
         # 参差数据
         residual = x
 
-        # 卷积操作
         out = self.relu(self.bn1(self.conv1(x)))
-        out = self.relu(self.bn2(self.conv2(out)))
-        out = self.relu(self.bn3(self.conv3(out)))
+        if self.st_struc == 'A':
+            out = self.ST_A(out)
+        elif self.st_struc == 'B':
+            out = self.ST_B(out)
+        elif self.st_struc == 'C':
+            out = self.ST_C(out)
 
-        # 是否直连（如果时Identity block就是直连；如果是Conv Block就需要对参差边进行卷积，改变通道数和size）
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        # 将参差部分和卷积部分相加
+        out = self.relu(self.bn10(self.conv10(out)))
         out += residual
         out = self.relu(out)
 
         return out
 
 
-class ResNet(nn.Module):
+class DMSN(nn.Module):
 
     # 初始化网络结构和参数
     def __init__(self, block, layers, num_classes=1000):
         # self.inplane为当前的fm的通道数
         self.inplane = 64
 
-        super(ResNet, self).__init__()
+        super(DMSN, self).__init__()
 
         # 参数
+        # layers里面的值表示里面block要循环的次数
         self.block = block
         self.layers = layers
 
         # stem的网络层
-        self.conv1 = nn.Conv2d(3, self.inplane, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = nn.BatchNorm2d(self.inplane)
+        self.conv1 = nn.Conv3d(3, self.inplane, kernel_size=(7, 7, 7), stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm3d(self.inplane)
         self.relu = nn.ReLU()
-        self.maxpool = nn.MaxPool2d(kernel_size=3, padding=1, stride=2)
+        self.maxpool = nn.MaxPool3d(kernel_size=(3, 3, 3), padding=1, stride=2)
 
-        # 64，128，256，512是指扩大4倍之前的维度,即Identity Block的中间维度
-        self.stage1 = self.make_layer(self.block, 64, self.layers[0], stride=1)
-        self.stage2 = self.make_layer(self.block, 128, self.layers[1], stride=2)
-        self.stage3 = self.make_layer(self.block, 256, self.layers[2], stride=2)
-        self.stage4 = self.make_layer(self.block, 512, self.layers[3], stride=2)
+        # 32，64，128，256是指扩大4倍之前的维度,即Identity Block的中间维度
+        self.stage1 = self.make_layer(self.block, 32, self.layers[0], shortcut_type=1, stride=1)
+        self.stage2 = self.make_layer(self.block, 64, self.layers[1], shortcut_type=2, stride=2)
+        self.stage3 = self.make_layer(self.block, 128, self.layers[2], shortcut_type=3, stride=2)
+        self.stage4 = self.make_layer(self.block, 256, self.layers[3], shortcut_type=4, stride=2)
 
         # 后续的网络
         self.avgpool = nn.AvgPool2d(7)
@@ -98,7 +250,7 @@ class ResNet(nn.Module):
 
         return out
 
-    def make_layer(self, block, midplane, block_num, stride=1):
+    def make_layer(self, block, midplane, block_num, shortcut_type, stride=1):
         '''
             block:block模块
             midplane：每个模块中间运算的维度，一般等于输出维度/4
@@ -107,28 +259,38 @@ class ResNet(nn.Module):
         '''
 
         block_list = []
-
-        # 先计算要不要加downsample模块
-        downsample = None
-        if stride != 1 or self.inplane != midplane * block.extention:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplane, midplane * block.extention, stride=stride, kernel_size=1, bias=False),
-                nn.BatchNorm2d(midplane * block.extention)
-            )
-
-        # Conv Block
-        conv_block = block(self.inplane, midplane, stride=stride, downsample=downsample)
-        block_list.append(conv_block)
-        self.inplane = midplane * block.extention
-
-        # Identity Block
-        for i in range(1, block_num):
-            block_list.append(block(self.inplane, midplane, stride=1))
+        if shortcut_type == 1:
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='A'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='B'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='C'))
+        elif shortcut_type == 2:
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='A'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='B'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='C'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='A'))
+        elif shortcut_type == 3:
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='A'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='B'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='C'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='A'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='B'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='C'))
+        elif shortcut_type == 4:
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='A'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='B'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='C'))
+            block_list.append(block(self.inplane, midplane, stride=1, st_struc='A'))
 
         return nn.Sequential(*block_list)
 
 
-resnet = ResNet(Bottleneck, [3, 4, 6, 3])
-x = torch.randn(1, 3, 224, 224)
-x = resnet(x)
-print(x.shape)
+resnet = DMSN(Bottleneck, [3, 4, 6, 3])
+resnet = resnet.to(device=6)
+data = torch.autograd.Variable(
+    torch.rand(8, 3, 16, 112, 112)).to(device=6)  # if modality=='Flow', please change the 2nd dimension 3==>2
+out = resnet(data)
+print(out.size(), out)
+# 向网络输入一个1，3，224，224的tensor
+# x = torch.randn(1, 3, 224, 224)
+# x = resnet(x)
+print(resnet)
