@@ -31,89 +31,89 @@ class Bottleneck(nn.Module):
         self.st_struc = st_struc
         self.midplane = midplane
 
-        if shortcut_type==1:
-            self.midplane = 16
-        elif shortcut_type == 2:
-            self.midplane = 32
-        elif shortcut_type == 3:
-            self.midplane =64
-        elif shortcut_type == 4:
-            self.midplane =128
-
         print(self.midplane)
-        self.conv1 = nn.Conv3d(self.midplane * self.extention, self.midplane * self.extention, kernel_size=(1, 1, 1), stride=stride, bias=False)
-        self.bn1 = nn.BatchNorm3d(self.midplane * self.extention)
+        # self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1), stride=stride, bias=False)
+        # self.bn1 = nn.BatchNorm3d(midplane * self.extention)
 
         # stage1输入通道数为64，main stage中通道数为他的一半，分支通道数为他的四分之一
         # 这里stage1输入了16，first_plane为32，double_plane为64
-        self.one_plane = self.midplane * 2
-        self.double_plane = self.midplane * self.extention
+        one_plane = midplane * 2
+        double_plane = midplane * self.extention
 
         if self.st_struc == 'A':
-            self.conv2 = conv_T(self.double_plane, self.one_plane)
-            self.bn2 = nn.BatchNorm3d(self.one_plane)
-            self.conv7 = conv_S(self.one_plane, self.midplane)
-            self.bn7 = nn.BatchNorm3d(self.midplane)
+            self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
+                                   stride=stride, bias=False)
+            self.bn1 = nn.BatchNorm3d(midplane * self.extention)
+            self.conv2 = conv_T(double_plane, one_plane)
+            self.bn2 = nn.BatchNorm3d(one_plane)
+            self.conv6 = conv_S(one_plane, midplane)
+            self.bn6 = nn.BatchNorm3d(midplane)
 
-            self.conv3 = conv_T(self.one_plane, self.one_plane)
-            self.bn3 = nn.BatchNorm3d(self.one_plane)
-            self.conv8 = conv_S(self.one_plane, self.midplane)
-            self.bn8 = nn.BatchNorm3d(self.midplane)
+            self.conv3 = conv_T(one_plane, one_plane)
+            self.bn3 = nn.BatchNorm3d(one_plane)
+            self.conv7 = conv_S(one_plane, midplane)
+            self.bn7 = nn.BatchNorm3d(midplane)
 
-            self.conv4 = conv_T(self.one_plane, self.one_plane)
-            self.bn4 = nn.BatchNorm3d(self.one_plane)
-            self.conv6 = conv_S(self.one_plane, self.midplane)
-            self.bn6 = nn.BatchNorm3d(self.midplane)
+            self.conv4 = conv_T(one_plane, one_plane)
+            self.bn4 = nn.BatchNorm3d(one_plane)
+            self.conv8 = conv_S(one_plane, midplane)
+            self.bn8 = nn.BatchNorm3d(midplane)
 
-            self.conv5 = conv_T(self.one_plane, self.one_plane)
-            self.bn5 = nn.BatchNorm3d(self.one_plane)
-            self.conv9 = conv_S(self.one_plane, self.midplane)
-            self.bn9 = nn.BatchNorm3d(self.midplane)
+            self.conv5 = conv_T(one_plane, one_plane)
+            self.bn5 = nn.BatchNorm3d(one_plane)
+            self.conv9 = conv_S(one_plane, midplane)
+            self.bn9 = nn.BatchNorm3d(midplane)
 
         elif self.st_struc == 'B':
-            self.conv6 = conv_S(self.double_plane, self.one_plane)
-            self.bn6 = nn.BatchNorm3d(self.one_plane)
-            self.conv2 = conv_T(self.one_plane, self.midplane)
-            self.bn2 = nn.BatchNorm3d(self.midplane)
+            self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
+                                   stride=stride, bias=False)
+            self.bn1 = nn.BatchNorm3d(midplane * self.extention)
+            self.conv6 = conv_S(double_plane, one_plane)
+            self.bn6 = nn.BatchNorm3d(one_plane)
+            self.conv2 = conv_T(one_plane, midplane)
+            self.bn2 = nn.BatchNorm3d(midplane)
 
-            self.conv3 = conv_T(self.one_plane, self.one_plane)
-            self.bn3 = nn.BatchNorm3d(self.one_plane)
-            self.conv7 = conv_S(self.one_plane, self.midplane)
-            self.bn7 = nn.BatchNorm3d(self.midplane)
+            self.conv3 = conv_T(one_plane, one_plane)
+            self.bn3 = nn.BatchNorm3d(one_plane)
+            self.conv7 = conv_S(one_plane, midplane)
+            self.bn7 = nn.BatchNorm3d(midplane)
 
-            self.conv8 = conv_S(self.one_plane, self.one_plane)
-            self.bn8 = nn.BatchNorm3d(self.one_plane)
-            self.conv4 = conv_T(self.one_plane, self.midplane)
-            self.bn4 = nn.BatchNorm3d(self.midplane)
+            self.conv8 = conv_S(one_plane, one_plane)
+            self.bn8 = nn.BatchNorm3d(one_plane)
+            self.conv4 = conv_T(one_plane, midplane)
+            self.bn4 = nn.BatchNorm3d(midplane)
 
-            self.conv5 = conv_T(self.one_plane, self.one_plane)
-            self.bn5 = nn.BatchNorm3d(self.one_plane)
-            self.conv9 = conv_S(self.one_plane, self.midplane)
-            self.bn9 = nn.BatchNorm3d(self.midplane)
+            self.conv5 = conv_T(one_plane, one_plane)
+            self.bn5 = nn.BatchNorm3d(one_plane)
+            self.conv9 = conv_S(one_plane, midplane)
+            self.bn9 = nn.BatchNorm3d(midplane)
 
         elif self.st_struc == 'C':
-            self.conv6 = conv_S(self.double_plane, self.one_plane)
-            self.bn6 = nn.BatchNorm3d(self.one_plane)
-            self.conv2 = conv_T(self.one_plane, self.midplane)
-            self.bn2 = nn.BatchNorm3d(self.midplane)
+            self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
+                                   stride=stride, bias=False)
+            self.bn1 = nn.BatchNorm3d(midplane * self.extention)
+            self.conv6 = conv_S(double_plane, one_plane)
+            self.bn6 = nn.BatchNorm3d(one_plane)
+            self.conv2 = conv_T(one_plane, midplane)
+            self.bn2 = nn.BatchNorm3d(midplane)
 
-            self.conv7 = conv_S(self.one_plane, self.one_plane)
-            self.bn7 = nn.BatchNorm3d(self.one_plane)
-            self.conv3 = conv_T(self.one_plane, self.midplane)
-            self.bn3 = nn.BatchNorm3d(self.midplane)
+            self.conv7 = conv_S(one_plane, one_plane)
+            self.bn7 = nn.BatchNorm3d(one_plane)
+            self.conv3 = conv_T(one_plane, midplane)
+            self.bn3 = nn.BatchNorm3d(midplane)
 
-            self.conv8 = conv_S(self.one_plane, self.one_plane)
-            self.bn8 = nn.BatchNorm3d(self.one_plane)
-            self.conv4 = conv_T(self.one_plane, self.midplane)
-            self.bn4 = nn.BatchNorm3d(self.midplane)
+            self.conv8 = conv_S(one_plane, one_plane)
+            self.bn8 = nn.BatchNorm3d(one_plane)
+            self.conv4 = conv_T(one_plane, midplane)
+            self.bn4 = nn.BatchNorm3d(midplane)
 
-            self.conv9 = conv_S(self.one_plane, self.one_plane)
-            self.bn9 = nn.BatchNorm3d(self.one_plane)
-            self.conv5 = conv_T(self.one_plane, self.midplane)
-            self.bn5 = nn.BatchNorm3d(self.midplane)
+            self.conv9 = conv_S(one_plane, one_plane)
+            self.bn9 = nn.BatchNorm3d(one_plane)
+            self.conv5 = conv_T(one_plane, midplane)
+            self.bn5 = nn.BatchNorm3d(midplane)
 
-        self.conv10 = nn.Conv3d(self.midplane*self.extention, self.midplane*self.extention, kernel_size=1, stride=1, bias=False)
-        self.bn10 = nn.BatchNorm3d(self.midplane * self.extention)
+        self.conv10 = nn.Conv3d(midplane*self.extention, midplane*self.extention, kernel_size=1, stride=1, bias=False)
+        self.bn10 = nn.BatchNorm3d(midplane * self.extention)
         self.relu = nn.ReLU(inplace=False)
 
         self.downsample = downsample
@@ -233,7 +233,7 @@ class Bottleneck(nn.Module):
         residual = xx
 
         print(xx.size())
-        print(self.midplane * self.extention)
+
         out = self.relu(self.bn1(self.conv1(xx)))
 
         if self.st_struc == 'A':
@@ -272,6 +272,7 @@ class DMSN(nn.Module):
         self.maxpool = nn.MaxPool3d(kernel_size=(3, 3, 3), padding=1, stride=2)
 
         # 32，64，128，256是指扩大4倍之前的维度,即Identity Block的中间维度
+
         self.stage1 = self.make_layer(self.block, 16, self.layers[0], shortcut_type=1, stride=1)
         self.stage2 = self.make_layer(self.block, 32, self.layers[1], shortcut_type=2, stride=2)
         self.stage3 = self.make_layer(self.block, 64, self.layers[2], shortcut_type=3, stride=2)
@@ -335,6 +336,7 @@ class DMSN(nn.Module):
             block_list.append(block(512, 128, stride=1, st_struc='C', shortcut_type=shortcut_type))
             block_list.append(block(512, 128, stride=1, st_struc='A', shortcut_type=shortcut_type))
 
+        print(block_list)
         return nn.Sequential(*block_list)
 
 
