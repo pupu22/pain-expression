@@ -5,11 +5,11 @@ import torch.nn.functional as F
 
 
 def conv_T(in_planes, out_planes, stride=1, padding=1):
-    return nn.Conv3d(in_planes, out_planes, kernel_size=(1, 1, 3), stride=(1, 1, 1), padding=(0, 0, 1), bias=False)
+    return nn.Conv3d(in_planes, out_planes, kernel_size=(1, 1, 3), stride=(1, 2, 1), padding=(0, 0, 1), bias=False)
 
 
 def conv_S(in_planes, out_planes, stride=1, padding=1):
-    return nn.Conv3d(in_planes, out_planes, kernel_size=(3, 3, 1), stride=(1, 1, 1), padding=(1, 1, 0), bias=False)
+    return nn.Conv3d(in_planes, out_planes, kernel_size=(3, 3, 1), stride=(1, 1, 2), padding=(1, 1, 0), bias=False)
 
 
 '''
@@ -68,19 +68,21 @@ class ModuleA(nn.Module):
     def ST_A(self, T):
         T1 = self.conv2(T)
         T1 = self.bn2(T1)
+        print(T1.size())
         T1 = self.relu(T1)
         ST1 = self.conv6(T1)
         ST1 = self.bn6(ST1)
         ST1 = self.relu(ST1)
+        print(ST1.size())
         # ST1 = np.concatenate(())
 
         T2 = self.conv3(T1)
         T2 = self.bn3(T2)
         T2 = self.relu(T2)
-        # print(T2.size())
+        print(T2.size())
         ST2 = self.conv7(T2)
         ST2 = self.bn7(ST2)
-        # print(ST2.size())
+        print(ST2.size())
         ST2 = self.relu(ST2)
 
         T3 = self.conv4(T2)
@@ -337,7 +339,6 @@ class DMSN(nn.Module):
     def forward(self, x):
 
         # stem部分:conv+bn+relu+maxpool
-        print(x.size())
         out = self.conv(x)
         out = self.bn1(out)
         out = self.relu(out)

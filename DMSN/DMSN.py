@@ -47,65 +47,65 @@ class Bottleneck(nn.Module):
             self.conv6 = conv_S(one_plane, midplane, stride=StrideS, padding=PaddingS)
             self.bn6 = nn.BatchNorm3d(midplane)
 
-            self.conv3 = conv_T(one_plane, one_plane, stride=StrideT, padding=PaddingT)
+            self.conv3 = conv_T(one_plane, one_plane, stride=(1, 1, 1), padding=(0, 0, 1))
             self.bn3 = nn.BatchNorm3d(one_plane)
-            self.conv7 = conv_S(one_plane, midplane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv7 = conv_S(one_plane, midplane, stride=StrideS, padding=PaddingS)
             self.bn7 = nn.BatchNorm3d(midplane)
 
-            self.conv4 = conv_T(one_plane, one_plane, stride=StrideT, padding=PaddingT)
+            self.conv4 = conv_T(one_plane, one_plane, stride=(1, 1, 1), padding=(0, 0, 1))
             self.bn4 = nn.BatchNorm3d(one_plane)
-            self.conv8 = conv_S(one_plane, midplane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv8 = conv_S(one_plane, midplane, stride=StrideS, padding=PaddingS)
             self.bn8 = nn.BatchNorm3d(midplane)
 
-            self.conv5 = conv_T(one_plane, one_plane, stride=StrideT, padding=PaddingT)
+            self.conv5 = conv_T(one_plane, one_plane, stride=(1, 1, 1), padding=(0, 0, 1))
             self.bn5 = nn.BatchNorm3d(one_plane)
-            self.conv9 = conv_S(one_plane, midplane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv9 = conv_S(one_plane, midplane, stride=StrideS, padding=PaddingS)
             self.bn9 = nn.BatchNorm3d(midplane)
 
         elif self.st_struc == 'B':
             self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
                                    stride=1, bias=False)
             self.bn1 = nn.BatchNorm3d(midplane * self.extention)
-            self.conv6 = conv_S(double_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv6 = conv_S(double_plane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn6 = nn.BatchNorm3d(one_plane)
             self.conv2 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn2 = nn.BatchNorm3d(midplane)
 
             self.conv3 = conv_T(one_plane, one_plane, stride=StrideT, padding=PaddingT)
             self.bn3 = nn.BatchNorm3d(one_plane)
-            self.conv7 = conv_S(one_plane, midplane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv7 = conv_S(one_plane, midplane, stride=StrideS, padding=PaddingS)
             self.bn7 = nn.BatchNorm3d(midplane)
 
-            self.conv8 = conv_S(one_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv8 = conv_S(one_plane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn8 = nn.BatchNorm3d(one_plane)
             self.conv4 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn4 = nn.BatchNorm3d(midplane)
 
             self.conv5 = conv_T(one_plane, one_plane, stride=StrideT, padding=PaddingT)
             self.bn5 = nn.BatchNorm3d(one_plane)
-            self.conv9 = conv_S(one_plane, midplane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv9 = conv_S(one_plane, midplane, stride=StrideS, padding=PaddingS)
             self.bn9 = nn.BatchNorm3d(midplane)
 
         elif self.st_struc == 'C':
             self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
                                    stride=1, bias=False)
             self.bn1 = nn.BatchNorm3d(midplane * self.extention)
-            self.conv6 = conv_S(double_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv6 = conv_S(double_plane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn6 = nn.BatchNorm3d(one_plane)
             self.conv2 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn2 = nn.BatchNorm3d(midplane)
 
-            self.conv7 = conv_S(one_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv7 = conv_S(one_plane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn7 = nn.BatchNorm3d(one_plane)
             self.conv3 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn3 = nn.BatchNorm3d(midplane)
 
-            self.conv8 = conv_S(one_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv8 = conv_S(one_plane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn8 = nn.BatchNorm3d(one_plane)
             self.conv4 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn4 = nn.BatchNorm3d(midplane)
 
-            self.conv9 = conv_S(one_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
+            self.conv9 = conv_S(one_plane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn9 = nn.BatchNorm3d(one_plane)
             self.conv5 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn5 = nn.BatchNorm3d(midplane)
@@ -153,8 +153,10 @@ class Bottleneck(nn.Module):
         ST4 = self.bn9(ST4)
         ST4 = self.relu(ST4)
         # ST4 = np.concatenate(ST3, ST4)
-        # print(ST3.size())
-        # print(ST4.size())
+        print(ST1.size())
+        print(ST2.size())
+        print(ST3.size())
+        print(ST4.size())
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         ST4 = torch.from_numpy(ST4)
 
@@ -228,6 +230,7 @@ class Bottleneck(nn.Module):
 
     def forward(self, xx):
         # 参差数据
+        print(xx.size())
         residual = xx
 
         out = self.relu(self.bn1(self.conv1(xx)))
@@ -239,13 +242,14 @@ class Bottleneck(nn.Module):
         elif self.st_struc == 'C':
             out = self.ST_C(out)
 
+        if self.downsample is not None:
+            residual = self.downsample(xx)
         out = self.relu(self.bn10(self.conv10(out)))
         # out = np.concatenate((out.detach(), residual.detach()), axis=1)
         # out = torch.from_numpy(out)
 
         out += residual
         out = self.relu(out)
-        print(out.size())
         return out
 
 
@@ -283,18 +287,19 @@ class DMSN(nn.Module):
     def forward(self, x):
 
         # stem部分:conv+bn+relu+maxpool
-        print(x.size())
         out = self.conv(x)
         out = self.bn1(out)
         out = self.relu(out)
-        # print(out.size())
         out = self.maxpool(out)
 
         # block
         out = self.stage1(out)
         out = self.stage2(out)
+        print(out.size())
         out = self.stage3(out)
+        print(out.size())
         out = self.stage4(out)
+        print(out.size())
 
         # 分类
         # out = self.avgpool(out)
@@ -310,11 +315,14 @@ class DMSN(nn.Module):
             block_num：重复次数
             stride：Conv Block的步长
         '''
-
+        downsample = nn.Sequential(
+                nn.Conv2d(self.inplane, midplane * block.extention, stride=stride, kernel_size=1, bias=False),
+                nn.BatchNorm2d(midplane * block.extention)
+            )
         block_list = []
         if shortcut_type == 1:
             block_list.append(block(self.inplane, 16, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), st_struc='A'))
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
             block_list.append(block(self.inplane, 16, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
             block_list.append(block(self.inplane, 16, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
@@ -322,34 +330,34 @@ class DMSN(nn.Module):
             block_list.append(nn.Conv3d(64, 128, kernel_size=(1, 1, 1), stride=(1, 1, 1),
                                         padding=(0, 0, 0), bias=False))
         elif shortcut_type == 2:
-            block_list.append(block(128, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), st_struc='A'))
-            block_list.append(block(128, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
+            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
-            block_list.append(block(128, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='C'))
-            block_list.append(block(128, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='A'))
             block_list.append(nn.Conv3d(128, 256, kernel_size=(1, 1, 1), stride=(1, 1, 1),
                                         padding=(0, 0, 0), bias=False))
         elif shortcut_type == 3:
-            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), st_struc='A'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
+            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='C'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='A'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
                                     PaddingT=(0, 0, 1), st_struc='C'))
             block_list.append(nn.Conv3d(256, 512, kernel_size=(1, 1, 1), stride=(1, 1, 1),
                                         padding=(0, 0, 0), bias=False))
         elif shortcut_type == 4:
             block_list.append(block(512, 128, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), st_struc='A'))
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
             block_list.append(block(512, 128, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
             block_list.append(block(512, 128, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
