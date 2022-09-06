@@ -26,7 +26,8 @@ class Bottleneck(nn.Module):
     extention = 4
 
     # 定义初始化的网络和参数
-    def __init__(self, inplane, midplane, StrideS, PaddingS, StrideT, PaddingT, downsample=None, st_struc='A'):
+    def __init__(self, inplane, midplane, StrideS, PaddingS, StrideT, PaddingT, downsample=None, st_struc='A',
+                 number=0):
         super(Bottleneck, self).__init__()
         self.st_struc = st_struc
         self.midplane = midplane
@@ -36,13 +37,12 @@ class Bottleneck(nn.Module):
         # stage1输入通道数为64，main stage中通道数为他的一半，分支通道数为他的四分之一
         # 这里stage1输入了16，first_plane为32，double_plane为64
         one_plane = midplane * 2
-        double_plane = midplane * self.extention
 
         if self.st_struc == 'A':
-            self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
+            self.conv1 = nn.Conv3d(inplane, inplane, kernel_size=(1, 1, 1),
                                    stride=1, bias=False)
-            self.bn1 = nn.BatchNorm3d(midplane * self.extention)
-            self.conv2 = conv_T(double_plane, one_plane, stride=StrideT, padding=PaddingT)
+            self.bn1 = nn.BatchNorm3d(inplane)
+            self.conv2 = conv_T(inplane, one_plane, stride=StrideT, padding=PaddingT)
             self.bn2 = nn.BatchNorm3d(one_plane)
             self.conv6 = conv_S(one_plane, midplane, stride=StrideS, padding=PaddingS)
             self.bn6 = nn.BatchNorm3d(midplane)
@@ -63,10 +63,10 @@ class Bottleneck(nn.Module):
             self.bn9 = nn.BatchNorm3d(midplane)
 
         elif self.st_struc == 'B':
-            self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
+            self.conv1 = nn.Conv3d(inplane, inplane, kernel_size=(1, 1, 1),
                                    stride=1, bias=False)
-            self.bn1 = nn.BatchNorm3d(midplane * self.extention)
-            self.conv6 = conv_S(double_plane, one_plane, stride=StrideS, padding=PaddingS)
+            self.bn1 = nn.BatchNorm3d(inplane)
+            self.conv6 = conv_S(inplane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn6 = nn.BatchNorm3d(one_plane)
             self.conv2 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn2 = nn.BatchNorm3d(midplane)
@@ -87,30 +87,36 @@ class Bottleneck(nn.Module):
             self.bn9 = nn.BatchNorm3d(midplane)
 
         elif self.st_struc == 'C':
-            self.conv1 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=(1, 1, 1),
+            self.conv1 = nn.Conv3d(inplane, inplane, kernel_size=(1, 1, 1),
                                    stride=1, bias=False)
-            self.bn1 = nn.BatchNorm3d(midplane * self.extention)
-            self.conv6 = conv_S(double_plane, one_plane, stride=StrideS, padding=PaddingS)
+            self.bn1 = nn.BatchNorm3d(inplane)
+            self.conv6 = conv_S(inplane, one_plane, stride=StrideS, padding=PaddingS)
             self.bn6 = nn.BatchNorm3d(one_plane)
             self.conv2 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn2 = nn.BatchNorm3d(midplane)
 
-            self.conv7 = conv_S(one_plane, one_plane, stride=StrideS, padding=PaddingS)
+            self.conv7 = conv_S(one_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
             self.bn7 = nn.BatchNorm3d(one_plane)
             self.conv3 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn3 = nn.BatchNorm3d(midplane)
 
-            self.conv8 = conv_S(one_plane, one_plane, stride=StrideS, padding=PaddingS)
+            self.conv8 = conv_S(one_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
             self.bn8 = nn.BatchNorm3d(one_plane)
             self.conv4 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn4 = nn.BatchNorm3d(midplane)
 
-            self.conv9 = conv_S(one_plane, one_plane, stride=StrideS, padding=PaddingS)
+            self.conv9 = conv_S(one_plane, one_plane, stride=(1, 1, 1), padding=(1, 1, 0))
             self.bn9 = nn.BatchNorm3d(one_plane)
             self.conv5 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn5 = nn.BatchNorm3d(midplane)
 
-        self.conv10 = nn.Conv3d(midplane*self.extention, midplane*self.extention, kernel_size=1, stride=1, bias=False)
+        if number == 1:
+            changeOutplane = midplane * self.extention * 2
+        else:
+            changeOutplane = midplane * self.extention
+
+        self.conv10 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=1, stride=1,
+                                bias=False)
         self.bn10 = nn.BatchNorm3d(midplane * self.extention)
         self.relu = nn.ReLU(inplace=False)
 
@@ -119,6 +125,8 @@ class Bottleneck(nn.Module):
 
     def ST_A(self, T):
 
+        print("A_input")
+        print(T.size())
         T1 = self.conv2(T)
         T1 = self.bn2(T1)
         T1 = self.relu(T1)
@@ -153,13 +161,10 @@ class Bottleneck(nn.Module):
         ST4 = self.bn9(ST4)
         ST4 = self.relu(ST4)
         # ST4 = np.concatenate(ST3, ST4)
-        print(ST1.size())
-        print(ST2.size())
-        print(ST3.size())
-        print(ST4.size())
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         ST4 = torch.from_numpy(ST4)
 
+        print("A")
         return ST4
 
     def ST_B(self, Y):
@@ -193,46 +198,61 @@ class Bottleneck(nn.Module):
 
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         ST4 = torch.from_numpy(ST4)
+
+        print("B")
         return ST4
 
     def ST_C(self, S):
+        print("C_input")
+        print(S.size())
         S1 = self.conv6(S)
         S1 = self.bn6(S1)
         S1 = self.relu(S1)
+        print("S1")
+        print(S1.size())
         ST1 = self.conv2(S1)
         ST1 = self.bn2(ST1)
         ST1 = self.relu(ST1)
+        print(ST1.size())
 
         S2 = self.conv7(S1)
         S2 = self.bn7(S2)
         S2 = self.relu(S2)
+        print(S2.size())
         ST2 = self.conv3(S2)
         ST2 = self.bn3(ST2)
         ST2 = self.relu(ST2)
+        print(ST2.size())
 
         S3 = self.conv8(S2)
         S3 = self.bn8(S3)
         S3 = self.relu(S3)
+        print(S3.size())
         ST3 = self.conv4(S3)
         ST3 = self.bn4(ST3)
         ST3 = self.relu(ST3)
+        print(ST3.size())
 
         S4 = self.conv9(S3)
         S4 = self.bn9(S4)
         S4 = self.relu(S4)
+        print(S4.size())
         ST4 = self.conv5(S4)
         ST4 = self.bn5(ST4)
         ST4 = self.relu(ST4)
+        print(ST4.size())
 
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         ST4 = torch.from_numpy(ST4)
+
+        print("C")
         return ST4
 
     def forward(self, xx):
         # 参差数据
-        print(xx.size())
         residual = xx
 
+        print(xx.size())
         out = self.relu(self.bn1(self.conv1(xx)))
 
         if self.st_struc == 'A':
@@ -244,12 +264,18 @@ class Bottleneck(nn.Module):
 
         if self.downsample is not None:
             residual = self.downsample(xx)
+
+        print(out.size())
         out = self.relu(self.bn10(self.conv10(out)))
         # out = np.concatenate((out.detach(), residual.detach()), axis=1)
         # out = torch.from_numpy(out)
 
+        print(out.size())
+        print(residual.size())
         out += residual
         out = self.relu(out)
+
+        print(out.size())
         return out
 
 
@@ -274,15 +300,17 @@ class DMSN(nn.Module):
         self.maxpool = nn.MaxPool3d(kernel_size=(3, 3, 3), padding=1, stride=2)
 
         # 32，64，128，256是指扩大4倍之前的维度,即Identity Block的中间维度
-        self.ConvSize = nn.Conv3d(3, self.inplane, kernel_size=(1, 1, 1), stride=(1, 2, 2), padding=(3, 3, 3), bias=False)
+        self.ConvSize = nn.Conv3d(3, self.inplane, kernel_size=(1, 1, 1), stride=(1, 2, 2), padding=(3, 3, 3),
+                                  bias=False)
         self.stage1 = self.make_layer(self.block, 16, self.layers[0], shortcut_type=1, stride=1)
         self.stage2 = self.make_layer(self.block, 32, self.layers[1], shortcut_type=2, stride=2)
         self.stage3 = self.make_layer(self.block, 64, self.layers[2], shortcut_type=3, stride=2)
         self.stage4 = self.make_layer(self.block, 128, self.layers[3], shortcut_type=4, stride=2)
 
         # 后续的网络
-        self.avgpool = nn.AvgPool2d(7)
-        self.fc = nn.Linear(512 * block.extention, num_classes)
+        self.Savgpool = nn.AvgPool3d(kernel_size=(1, 3, 3))
+        self.avgpool = nn.AvgPool3d(kernel_size=(5, 1, 1))
+        self.fc = nn.Linear(1024, num_classes)
 
     def forward(self, x):
 
@@ -293,79 +321,122 @@ class DMSN(nn.Module):
         out = self.maxpool(out)
 
         # block
+        print("--------------------------stage1----------------------")
         out = self.stage1(out)
+        print("--------------------------stage2----------------------")
         out = self.stage2(out)
-        print(out.size())
+        print("--------------------------stage3----------------------")
         out = self.stage3(out)
-        print(out.size())
+        print("--------------------------stage4----------------------")
         out = self.stage4(out)
-        print(out.size())
 
         # 分类
-        # out = self.avgpool(out)
-        # out = torch.flatten(out, 1)
-        # out = self.fc(out)
+        out = self.Savgpool(out)
+        out = self.avgpool(out)
+        out = np.squeeze(out)
+        # out = torch.flatten(out, 2)
+        out = self.fc(out)
 
+        print(out)
+        out = F.softmax(out, dim=0)
+
+        print(out)
         return out
 
     def make_layer(self, block, midplane, block_num, shortcut_type, stride=1):
-        '''
+        """
             block:block模块
             midplane：每个模块中间运算的维度，一般等于输出维度/4
             block_num：重复次数
             stride：Conv Block的步长
-        '''
-        downsample = nn.Sequential(
-                nn.Conv2d(self.inplane, midplane * block.extention, stride=stride, kernel_size=1, bias=False),
-                nn.BatchNorm2d(midplane * block.extention)
-            )
+        """
+
         block_list = []
+
         if shortcut_type == 1:
+            '''
+                -----------------------------stage1-------------------------------------
+                A-B-C 
+                不修改大小，在C模块增加downsample，即直连部分增加一个卷积，改变通道数
+            '''
+            downsample = nn.Sequential(
+                nn.Conv3d(64, 128, stride=(1, 1, 1), padding=(0, 0, 0), kernel_size=1, bias=False),
+                nn.BatchNorm3d(128)
+            )
             block_list.append(block(self.inplane, 16, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
-            block_list.append(block(self.inplane, 16, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+                                    PaddingT=(0, 0, 1), st_struc='A'))
+            block_list.append(block(64, 16, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
-            block_list.append(block(self.inplane, 16, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), st_struc='C'))
-            block_list.append(nn.Conv3d(64, 128, kernel_size=(1, 1, 1), stride=(1, 1, 1),
-                                        padding=(0, 0, 0), bias=False))
+            block_list.append(block(64, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='C'))
+
         elif shortcut_type == 2:
-            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
-                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
-            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
-                                    PaddingT=(0, 0, 1), st_struc='B'))
-            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
-                                    PaddingT=(0, 0, 1), st_struc='C'))
-            block_list.append(block(128, 32, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+            '''
+                -----------------------------stage2-------------------------------------
+                A-B-C-A
+                C块修改图像大小与通道数，并在C模块增加downsample，即直连部分增加一个卷积，改变通道数和大小
+                C块的stride与padding修改图像大小，number修改通道数
+            '''
+            downsample = nn.Sequential(
+                nn.Conv3d(128, 256, stride=(2, 2, 2), padding=(4, 0, 0), kernel_size=1, bias=False),
+                nn.BatchNorm3d(256)
+            )
+            block_list.append(block(128, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='A'))
-            block_list.append(nn.Conv3d(128, 256, kernel_size=(1, 1, 1), stride=(1, 1, 1),
-                                        padding=(0, 0, 0), bias=False))
+            block_list.append(block(128, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+                                    PaddingT=(0, 0, 1), st_struc='B'))
+            block_list.append(block(128, 32, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+                                    PaddingT=(0, 0, 1), st_struc='C'))
+            block_list.append(block(128, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A', number=1))
+            # block_list.append(nn.Conv3d(128, 256, kernel_size=(1, 1, 1), stride=(1, 1, 1),
+            #                             padding=(0, 0, 0), bias=False))
         elif shortcut_type == 3:
-            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
-                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
-                                    PaddingT=(0, 0, 1), st_struc='B'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
-                                    PaddingT=(0, 0, 1), st_struc='C'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+            '''
+                -----------------------------stage3-------------------------------------
+                A-B-C-A-B-C 
+                最后一个C块修改图像大小与通道数，并在C模块增加downsample，即直连部分增加一个卷积，改变通道数和大小
+                C块的stride与padding修改图像大小，number修改通道数
+            '''
+            downsample = nn.Sequential(
+                nn.Conv3d(256, 512, stride=(2, 2, 2), padding=(4, 0, 0), kernel_size=1, bias=False),
+                nn.BatchNorm3d(512)
+            )
+            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='A'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
-            block_list.append(block(256, 64, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='C'))
-            block_list.append(nn.Conv3d(256, 512, kernel_size=(1, 1, 1), stride=(1, 1, 1),
-                                        padding=(0, 0, 0), bias=False))
+            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+                                    PaddingT=(0, 0, 1), st_struc='A'))
+            block_list.append(block(256, 64, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
+                                    PaddingT=(0, 0, 1), st_struc='B'))
+            block_list.append(block(256, 128, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='C', number=1))
+            # block_list.append(nn.Conv3d(256, 512, kernel_size=(1, 1, 1), stride=(1, 1, 1),
+            #                             padding=(0, 0, 0), bias=False))
         elif shortcut_type == 4:
+            '''
+                -----------------------------stage4-------------------------------------
+                A-B-C-A
+                最后一个A块修改图像大小与通道数，并增加downsample，即直连部分增加一个卷积，改变通道数和大小
+                C块的stride与padding修改图像大小，number修改通道数
+            '''
+            downsample = nn.Sequential(
+                nn.Conv3d(512, 1024, stride=(2, 2, 2), padding=(4, 0, 0), kernel_size=1, bias=False),
+                nn.BatchNorm3d(1024)
+            )
             block_list.append(block(512, 128, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A'))
+                                    PaddingT=(0, 0, 1), st_struc='A'))
             block_list.append(block(512, 128, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='B'))
             block_list.append(block(512, 128, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
                                     PaddingT=(0, 0, 1), st_struc='C'))
-            block_list.append(block(512, 128, StrideS=(1, 1, 1), PaddingS=(1, 1, 0), StrideT=(1, 1, 1),
-                                    PaddingT=(0, 0, 1), st_struc='A'))
-            block_list.append(nn.Conv3d(512, 1024, kernel_size=(1, 1, 1), stride=(1, 1, 1),
-                                        padding=(0, 0, 0), bias=False))
+            block_list.append(block(512, 256, StrideS=(1, 1, 2), PaddingS=(1, 1, 0), StrideT=(1, 2, 1),
+                                    PaddingT=(0, 0, 1), downsample=downsample, st_struc='A', number=1))
+            # block_list.append(nn.Conv3d(512, 1024, kernel_size=(1, 1, 1), stride=(1, 1, 1),
+            #                             padding=(0, 0, 0), bias=False))
 
         return nn.Sequential(*block_list)
 
