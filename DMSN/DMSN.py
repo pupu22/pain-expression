@@ -125,14 +125,16 @@ class Bottleneck(nn.Module):
 
     def ST_A(self, T):
 
-        print("A_input")
-        print(T.size())
         T1 = self.conv2(T)
         T1 = self.bn2(T1)
         T1 = self.relu(T1)
+        # print("T1")
+        # print(T1.size())
         ST1 = self.conv6(T1)
         ST1 = self.bn6(ST1)
         ST1 = self.relu(ST1)
+        # print("ST1")
+        # print(ST1.size())
         # ST1 = np.concatenate(())
 
         T2 = self.conv3(T1)
@@ -141,8 +143,8 @@ class Bottleneck(nn.Module):
         # print(T2.size())
         ST2 = self.conv7(T2)
         ST2 = self.bn7(ST2)
-        # print(ST2.size())
         ST2 = self.relu(ST2)
+        # print(ST2.size())
 
         T3 = self.conv4(T2)
         T3 = self.bn4(T3)
@@ -157,14 +159,15 @@ class Bottleneck(nn.Module):
         T4 = self.conv5(T3)
         T4 = self.bn5(T4)
         T4 = self.relu(T4)
+        # print(T4.size())
         ST4 = self.conv9(T4)
         ST4 = self.bn9(ST4)
         ST4 = self.relu(ST4)
+        # print(ST4.size())
         # ST4 = np.concatenate(ST3, ST4)
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         ST4 = torch.from_numpy(ST4)
 
-        print("A")
         return ST4
 
     def ST_B(self, Y):
@@ -199,60 +202,51 @@ class Bottleneck(nn.Module):
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         ST4 = torch.from_numpy(ST4)
 
-        print("B")
         return ST4
 
     def ST_C(self, S):
-        print("C_input")
-        print(S.size())
+        # print("C_input")
+        # print(S.size())
         S1 = self.conv6(S)
         S1 = self.bn6(S1)
         S1 = self.relu(S1)
-        print("S1")
-        print(S1.size())
+        # print("S1")
+        # print(S1.size())
         ST1 = self.conv2(S1)
         ST1 = self.bn2(ST1)
         ST1 = self.relu(ST1)
-        print(ST1.size())
+        # print(ST1.size())
 
         S2 = self.conv7(S1)
         S2 = self.bn7(S2)
         S2 = self.relu(S2)
-        print(S2.size())
         ST2 = self.conv3(S2)
         ST2 = self.bn3(ST2)
         ST2 = self.relu(ST2)
-        print(ST2.size())
 
         S3 = self.conv8(S2)
         S3 = self.bn8(S3)
         S3 = self.relu(S3)
-        print(S3.size())
         ST3 = self.conv4(S3)
         ST3 = self.bn4(ST3)
         ST3 = self.relu(ST3)
-        print(ST3.size())
 
         S4 = self.conv9(S3)
         S4 = self.bn9(S4)
         S4 = self.relu(S4)
-        print(S4.size())
         ST4 = self.conv5(S4)
         ST4 = self.bn5(ST4)
         ST4 = self.relu(ST4)
-        print(ST4.size())
 
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         ST4 = torch.from_numpy(ST4)
 
-        print("C")
         return ST4
 
     def forward(self, xx):
         # 参差数据
         residual = xx
 
-        print(xx.size())
         out = self.relu(self.bn1(self.conv1(xx)))
 
         if self.st_struc == 'A':
@@ -265,17 +259,13 @@ class Bottleneck(nn.Module):
         if self.downsample is not None:
             residual = self.downsample(xx)
 
-        print(out.size())
         out = self.relu(self.bn10(self.conv10(out)))
         # out = np.concatenate((out.detach(), residual.detach()), axis=1)
         # out = torch.from_numpy(out)
 
-        print(out.size())
-        print(residual.size())
         out += residual
         out = self.relu(out)
 
-        print(out.size())
         return out
 
 
@@ -337,10 +327,8 @@ class DMSN(nn.Module):
         # out = torch.flatten(out, 2)
         out = self.fc(out)
 
-        print(out)
         out = F.softmax(out, dim=0)
 
-        print(out)
         return out
 
     def make_layer(self, block, midplane, block_num, shortcut_type, stride=1):
@@ -441,13 +429,87 @@ class DMSN(nn.Module):
         return nn.Sequential(*block_list)
 
 
-resnet = DMSN(Bottleneck, [3, 4, 6, 3])
-# resnet = resnet.to(device=6)
-# data = torch.autograd.Variable(
-#     torch.rand(8, 3, 16, 112, 112)).to(device=6)  # if modality=='Flow', please change the 2nd dimension 3==>2
-# out = resnet(data)
-# print(out.size(), out)
-# 向网络输入一个1，3，224，224的tensor
-x = torch.randn(8, 3, 16, 112, 112)
-x = resnet(x)
-print(x.shape)
+def get_optim_policies(model=None, modality='RGB', enable_pbn=True):
+    '''
+    first conv:         weight --> conv weight
+                        bias   --> conv bias
+    normal action:      weight --> non-first conv + fc weight
+                        bias   --> non-first conv + fc bias
+    bn:                 the first bn3, and many all bn2.
+
+    '''
+    first_conv_weight = []
+    first_conv_bias = []
+    normal_weight = []
+    normal_bias = []
+    bn = []
+
+    if model == None:
+        log.l.info('no model!')
+        exit()
+
+    conv_cnt = 0
+    bn_cnt = 0
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv3d) or isinstance(m, torch.nn.Conv2d):
+            ps = list(m.parameters())
+            conv_cnt += 1
+            if conv_cnt == 1:
+                first_conv_weight.append(ps[0])
+                if len(ps) == 2:
+                    first_conv_bias.append(ps[1])
+            else:
+                normal_weight.append(ps[0])
+                if len(ps) == 2:
+                    normal_bias.append(ps[1])
+        elif isinstance(m, torch.nn.Linear):
+            ps = list(m.parameters())
+            normal_weight.append(ps[0])
+            if len(ps) == 2:
+                normal_bias.append(ps[1])
+
+        elif isinstance(m, torch.nn.BatchNorm3d):
+            bn_cnt += 1
+            # later BN's are frozen
+            if not enable_pbn or bn_cnt == 1:
+                bn.extend(list(m.parameters()))
+        elif isinstance(m, torch.nn.BatchNorm2d):
+            bn.extend(list(m.parameters()))
+        elif len(m._modules) == 0:
+            if len(list(m.parameters())) > 0:
+                raise ValueError("New atomic module type: {}. Need to give it a learning policy".format(type(m)))
+
+    slow_rate = 0.7
+    n_fore = int(len(normal_weight) * slow_rate)
+    slow_feat = normal_weight[:n_fore]  # finetune slowly.
+    slow_bias = normal_bias[:n_fore]
+    normal_feat = normal_weight[n_fore:]
+    normal_bias = normal_bias[n_fore:]
+
+    return [
+        {'params': first_conv_weight, 'lr_mult': 5 if modality == 'Flow' else 1, 'decay_mult': 1,
+         'name': "first_conv_weight"},
+        {'params': first_conv_bias, 'lr_mult': 10 if modality == 'Flow' else 2, 'decay_mult': 0,
+         'name': "first_conv_bias"},
+        {'params': slow_feat, 'lr_mult': 1, 'decay_mult': 1,
+         'name': "slow_feat"},
+        {'params': slow_bias, 'lr_mult': 2, 'decay_mult': 0,
+         'name': "slow_bias"},
+        {'params': normal_feat, 'lr_mult': 1, 'decay_mult': 1,
+         'name': "normal_feat"},
+        {'params': normal_bias, 'lr_mult': 2, 'decay_mult': 0,
+         'name': "normal_bias"},
+        {'params': bn, 'lr_mult': 1, 'decay_mult': 0,
+         'name': "BN scale/shift"},
+    ]
+
+# resnet = DMSN(Bottleneck, [3, 4, 6, 3])
+# # resnet = resnet.to(device=6)
+# # data = torch.autograd.Variable(
+# #     torch.rand(8, 3, 16, 112, 112)).to(device=6)  # if modality=='Flow', please change the 2nd dimension 3==>2
+# # out = resnet(data)
+# # print(out.size(), out)
+# # 向网络输入一个1，3，224，224的tensor
+# x = torch.randn(8, 3, 16, 112, 112)
+# x = resnet(x)
+# print(x.shape)
