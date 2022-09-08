@@ -1,28 +1,23 @@
 import os
+
 # # 只用3号卡
-# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from torchvision.transforms import transforms
-
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
+import shutil
+import numpy as np
 from torch.optim import lr_scheduler
 from torch.autograd import Variable
-
-import shutil
-import math
-import numpy as np
-from PIL import Image
-
-from DMSN import DMSN, Bottleneck, get_optim_policies
-from DMSN_dataset import DMSNDataSet
-# from p3d_model import P3D199, get_optim_policies
-
 import video_transforms
+
+from DMSN_dataset import DMSNDataSet
+from DMSN import DMSNModel, get_optim_policies
+
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 train_transform = video_transforms.Compose(
     [
@@ -108,7 +103,7 @@ def adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch):
 
 
 def train(train_loader, net, criterion, optimizer, epoch):
-    net = nn.DataParallel(net, device_ids=[7])
+    net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -119,10 +114,16 @@ def train(train_loader, net, criterion, optimizer, epoch):
     for i, data in enumerate(train_loader, 0):
         inputs, labels = data
         # 数据放到哪张显卡上
-        inputs, labels = Variable(inputs.to(device=7)), Variable(labels.to(device=7))
+
+        # inputs, labels = Variable(inputs), Variable(labels)
+
+        inputs = inputs.cuda()
+        labels = labels.cuda()
         # inputs,labels=Variable(inputs),Variable(labels)
 
         outputs = net(inputs)
+        # outputs = torch.unsqueeze(outputs, 0)
+
         loss = criterion(outputs, labels)
 
         prec1, prec3 = accuracy(outputs.data, labels.data, topk=(1, 3))
@@ -149,7 +150,7 @@ def train(train_loader, net, criterion, optimizer, epoch):
 
 def val(val_loader, net, criterion):
     # 指定显卡
-    net = nn.DataParallel(net, device_ids=[7])
+    net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -160,9 +161,12 @@ def val(val_loader, net, criterion):
     for i, data in enumerate(val_loader, 0):
         inputs, labels = data
         # 数据放到哪张显卡上
-        inputs, labels = Variable(inputs.to(device=7)), Variable(labels.to(device=7))
 
+        inputs, labels = Variable(inputs), Variable(labels)
+        inputs = inputs.cuda()
+        labels = labels.cuda()
         outputs = net(inputs)
+        # outputs = torch.unsqueeze(outputs, 0)
         loss = criterion(outputs, labels)
 
         prec1, prec3 = accuracy(outputs.data, labels.data, topk=(1, 3))
@@ -185,7 +189,7 @@ def val(val_loader, net, criterion):
 
 def test(test_loader, net, criterion):
     # 指定显卡
-    net = nn.DataParallel(net, device_ids=[6])
+    net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -198,9 +202,12 @@ def test(test_loader, net, criterion):
     for i, data in enumerate(test_loader, 0):
         inputs, labels = data
         # 数据放到哪张显卡上
-        inputs, labels = Variable(inputs.to(device=6)), Variable(labels.to(device=6))
-
+        inputs, labels = Variable(inputs), Variable(labels)
+        inputs = inputs.cuda()
+        labels = labels.cuda()
         outputs = net(inputs)
+
+        # outputs = torch.unsqueeze(outputs, 0)
         loss = criterion(outputs, labels)
 
         mse_item = np.sum((labels.data.cpu().numpy() - outputs.data.argmax().cpu().numpy()) ** 2) / len(outputs.data)
@@ -232,10 +239,11 @@ def test(test_loader, net, criterion):
 
 
 def main():
-    model = DMSN(Bottleneck, [3, 4, 6, 3])
+    model = DMSNModel().cuda()
     # 模型放到哪张显卡上
-    model = model.to(device=7)
-    criterion = nn.CrossEntropyLoss().to(device=7)
+    # model = nn.DataParallel(model, device_ids=[0])
+    # model = model.to(device=7)
+    criterion = nn.CrossEntropyLoss().cuda()
 
     # criterion = nn.CrossEntropyLoss()
 
@@ -243,7 +251,6 @@ def main():
 
     policies = get_optim_policies(model)
     learning_rate = 0.001
-    weight_decay = 0
     optimizer = optim.SGD(policies, lr=learning_rate, momentum=0.9, weight_decay=0.0001)
 
     start_epoch = 0
@@ -268,26 +275,26 @@ def main():
         train_loader = torch.utils.data.DataLoader(
             # P3DDataSet("p3dtrain_01.lst",
             DMSNDataSet("UNBCtrain.txt",
-                       length=16,
-                       modality="RGB",
-                       image_tmpl="frame{:06d}.jpg",
-                       transform=train_transform,
-                       data_type='train',
-                       index=i),
-            batch_size=5,
+                        length=16,
+                        modality="RGB",
+                        image_tmpl="frame{:06d}.jpg",
+                        transform=train_transform,
+                        data_type='train',
+                        index=i),
+            batch_size=18,
             shuffle=True,
             num_workers=24,
             pin_memory=True
         )
         test_loader = torch.utils.data.DataLoader(
             DMSNDataSet("UNBCtrain.txt",
-                       length=16,
-                       modality="RGB",
-                       image_tmpl="frame{:06d}.jpg",
-                       transform=train_transform,
-                       data_type='test',
-                       index=i),
-            batch_size=1,
+                        length=16,
+                        modality="RGB",
+                        image_tmpl="frame{:06d}.jpg",
+                        transform=train_transform,
+                        data_type='test',
+                        index=i),
+            batch_size=12,
             shuffle=False,
             num_workers=24,
             pin_memory=True
@@ -320,4 +327,5 @@ def main():
 
 
 if __name__ == '__main__':
+    torch.multiprocessing.set_start_method('spawn')
     main()

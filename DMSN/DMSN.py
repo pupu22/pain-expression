@@ -32,8 +32,6 @@ class Bottleneck(nn.Module):
         self.st_struc = st_struc
         self.midplane = midplane
 
-        print(self.midplane)
-
         # stage1输入通道数为64，main stage中通道数为他的一半，分支通道数为他的四分之一
         # 这里stage1输入了16，first_plane为32，double_plane为64
         one_plane = midplane * 2
@@ -110,13 +108,7 @@ class Bottleneck(nn.Module):
             self.conv5 = conv_T(one_plane, midplane, stride=StrideT, padding=PaddingT)
             self.bn5 = nn.BatchNorm3d(midplane)
 
-        if number == 1:
-            changeOutplane = midplane * self.extention * 2
-        else:
-            changeOutplane = midplane * self.extention
-
-        self.conv10 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=1, stride=1,
-                                bias=False)
+        self.conv10 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=1, stride=1)
         self.bn10 = nn.BatchNorm3d(midplane * self.extention)
         self.relu = nn.ReLU(inplace=False)
 
@@ -166,7 +158,8 @@ class Bottleneck(nn.Module):
         # print(ST4.size())
         # ST4 = np.concatenate(ST3, ST4)
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4)
+        # ST4 = np.concatenate((ST1, ST2, ST3, ST4), axis=1)
+        ST4 = torch.from_numpy(ST4).to(device=7)
 
         return ST4
 
@@ -200,7 +193,7 @@ class Bottleneck(nn.Module):
         ST4 = self.relu(ST4)
 
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4)
+        ST4 = torch.from_numpy(ST4).to(device=7)
 
         return ST4
 
@@ -239,7 +232,7 @@ class Bottleneck(nn.Module):
         ST4 = self.relu(ST4)
 
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4)
+        ST4 = torch.from_numpy(ST4).to(device=7)
 
         return ST4
 
@@ -259,11 +252,13 @@ class Bottleneck(nn.Module):
         if self.downsample is not None:
             residual = self.downsample(xx)
 
-        out = self.relu(self.bn10(self.conv10(out)))
+        out = self.conv10(out)
+        out = self.bn10(out)
+        out = self.relu(out)
         # out = np.concatenate((out.detach(), residual.detach()), axis=1)
         # out = torch.from_numpy(out)
-
-        out += residual
+        # if isinstance(out.data, torch.cuda.FloatTensor):
+        out = out + residual
         out = self.relu(out)
 
         return out
@@ -272,7 +267,7 @@ class Bottleneck(nn.Module):
 class DMSN(nn.Module):
 
     # 初始化网络结构和参数
-    def __init__(self, block, layers, num_classes=1000):
+    def __init__(self, block, layers, num_classes=6):
         # self.inplane为当前的fm的通道数
         self.inplane = 64
 
@@ -311,13 +306,13 @@ class DMSN(nn.Module):
         out = self.maxpool(out)
 
         # block
-        print("--------------------------stage1----------------------")
+        # print("--------------------------stage1----------------------")
         out = self.stage1(out)
-        print("--------------------------stage2----------------------")
+        # print("--------------------------stage2----------------------")
         out = self.stage2(out)
-        print("--------------------------stage3----------------------")
+        # print("--------------------------stage3----------------------")
         out = self.stage3(out)
-        print("--------------------------stage4----------------------")
+        # print("--------------------------stage4----------------------")
         out = self.stage4(out)
 
         # 分类
@@ -429,6 +424,11 @@ class DMSN(nn.Module):
         return nn.Sequential(*block_list)
 
 
+def DMSNModel(**kwargs):
+    model = DMSN(Bottleneck, [3, 4, 6, 3], **kwargs)
+    return model
+
+
 def get_optim_policies(model=None, modality='RGB', enable_pbn=True):
     '''
     first conv:         weight --> conv weight
@@ -503,13 +503,21 @@ def get_optim_policies(model=None, modality='RGB', enable_pbn=True):
          'name': "BN scale/shift"},
     ]
 
+
 # resnet = DMSN(Bottleneck, [3, 4, 6, 3])
-# # resnet = resnet.to(device=6)
-# # data = torch.autograd.Variable(
-# #     torch.rand(8, 3, 16, 112, 112)).to(device=6)  # if modality=='Flow', please change the 2nd dimension 3==>2
-# # out = resnet(data)
-# # print(out.size(), out)
+# resnet = resnet.cuda()
+# data = torch.autograd.Variable(
+#     torch.rand(8, 3, 16, 112, 112)).cuda()  # if modality=='Flow', please change the 2nd dimension 3==>2
+# out = resnet(data)
+# print(out.size(), out)
+
 # # 向网络输入一个1，3，224，224的tensor
 # x = torch.randn(8, 3, 16, 112, 112)
 # x = resnet(x)
 # print(x.shape)
+
+# loss_func = nn.CrossEntropyLoss()
+# x = torch.rand((1, 4))
+# y = torch.tensor([0])
+# z = loss_func(x, y)
+# print(z)

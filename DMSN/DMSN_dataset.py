@@ -71,7 +71,7 @@ class DMSNDataSet(data.Dataset):
         self.sub_list = list(set([ClipRecord(x.strip().split(' ')).subject for x in open(self.list_file)]))
         if self.data_type == 'train':
             self.sub_list.pop(self.index)
-            print(self.sub_list)
+            # print(self.sub_list)
             clip_temp = []
             for i in range(len(self.clip_list)):
                 if self.clip_list[i].subject in self.sub_list:
