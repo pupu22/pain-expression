@@ -159,7 +159,7 @@ class Bottleneck(nn.Module):
         # ST4 = np.concatenate(ST3, ST4)
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
         # ST4 = np.concatenate((ST1, ST2, ST3, ST4), axis=1)
-        ST4 = torch.from_numpy(ST4).to(device=7)
+        ST4 = torch.from_numpy(ST4).to(device=6)
 
         return ST4
 
@@ -193,7 +193,7 @@ class Bottleneck(nn.Module):
         ST4 = self.relu(ST4)
 
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4).to(device=7)
+        ST4 = torch.from_numpy(ST4).to(device=6)
 
         return ST4
 
@@ -232,7 +232,7 @@ class Bottleneck(nn.Module):
         ST4 = self.relu(ST4)
 
         ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4).to(device=7)
+        ST4 = torch.from_numpy(ST4).to(device=6)
 
         return ST4
 

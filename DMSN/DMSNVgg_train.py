@@ -11,7 +11,8 @@ from Vgg_Dataset import VggDataset
 from DMSN import DMSNModel, get_optim_policies
 
 import video_transforms
-os.environ['CUDA_VISIBLE_DEVICES'] = '6, 7'
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '6'
 train_transform = video_transforms.Compose(
     [
         video_transforms.RandomResizedCrop(160),
@@ -37,7 +38,7 @@ train_loader = torch.utils.data.DataLoader(
                modality="RGB",
                image_tmpl="frame{:06d}.jpg",
                transform=train_transform),
-    batch_size=25,
+    batch_size=20,
     shuffle=True,
     num_workers=24,
     pin_memory=True
@@ -92,10 +93,14 @@ def accuracy(output, target, topk=(1,)):
     return res
 
 
-def save_checkpoint(state, is_best, filename='VGGCheckpoint.pth.tar'):
+def save_temp(state, filename='DMSNTemp.pth.tar'):
+    torch.save(state, filename)
+
+
+def save_checkpoint(state, is_best, filename='DMSNCheckpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'VGGBest.pth.tar')
+        shutil.copyfile(filename, 'DMSNBest.pth.tar')
 
 
 def adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch):
@@ -107,7 +112,7 @@ def adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch):
 
 
 def train(train_loader, net, criterion, optimizer, epoch):
-    net = nn.DataParallel(net, device_ids=[7])
+    net = nn.DataParallel(net, device_ids=[6])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -118,7 +123,7 @@ def train(train_loader, net, criterion, optimizer, epoch):
     for i, data in enumerate(train_loader, 0):
         inputs, labels = data
         # 数据放到哪张显卡上
-        inputs, labels = Variable(inputs.to(device=7)), Variable(labels.to(device=7))
+        inputs, labels = Variable(inputs.to(device=6)), Variable(labels.to(device=6))
         # inputs,labels=Variable(inputs),Variable(labels)
         # print("epoch：", epoch, "的第", i, "个inputs", inputs.data.size(), "labels", labels.data)
 
@@ -136,6 +141,7 @@ def train(train_loader, net, criterion, optimizer, epoch):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        torch.cuda.empty_cache()
 
         if i % 10 == 0:
             # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
@@ -148,7 +154,13 @@ def train(train_loader, net, criterion, optimizer, epoch):
                 epoch, i, len(train_loader), loss=losses,
                 lr=optimizer.param_groups[0]['lr'],
                 top1=top1, top3=top3))
-        torch.cuda.empty_cache()
+
+        if i % 1000 == 0:
+            save_temp({
+                'epoch': epoch + 1,
+                'state_dict': net.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            })
 
         # del inputs, outputs
     torch.cuda.empty_cache()
@@ -157,7 +169,7 @@ def train(train_loader, net, criterion, optimizer, epoch):
 
 def val(val_loader, net, criterion):
     # 指定显卡
-    net = nn.DataParallel(net, device_ids=[7])
+    net = nn.DataParallel(net, device_ids=[6])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -168,7 +180,7 @@ def val(val_loader, net, criterion):
     for i, data in enumerate(val_loader, 0):
         inputs, labels = data
         # 数据放到哪张显卡上
-        inputs, labels = Variable(inputs.to(device=7)), Variable(labels.to(device=7))
+        inputs, labels = Variable(inputs.to(device=6)), Variable(labels.to(device=6))
 
         outputs = net(inputs)
         loss = criterion(outputs, labels)
@@ -197,10 +209,10 @@ def val(val_loader, net, criterion):
 def main():
     model = DMSNModel()
     # 模型放到哪张显卡上
-    model = model.to(device=7)
+    model = model.to(device=6)
 
     # model = model.cuda()
-    criterion = nn.CrossEntropyLoss().to(device=7)
+    criterion = nn.CrossEntropyLoss().to(device=6)
 
     # criterion = nn.CrossEntropyLoss()
 
