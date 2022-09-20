@@ -13,7 +13,7 @@ class ClipRecord(object):
 
     @property
     def path(self):
-        return "/home/cike/pythonGC/UNBC" + self._data[0]
+        return "/home/cike/UNBC" + self._data[0]
 
     @property
     def start_frames(self):
@@ -59,7 +59,6 @@ class DMSNDataSet(data.Dataset):
         if self.modality == 'RGB':
             idx_3bite = "%03d" % idx
             filename = name + idx_3bite + ".png"
-            # print("i:",idx,"filname:",filename)
             return Image.open(os.path.join(directory, filename)).convert('RGB')
             # return Image.open(os.path.join(directory, self.image_tmpl.format(idx)))
 

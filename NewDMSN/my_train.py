@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -38,9 +38,9 @@ train_loader = torch.utils.data.DataLoader(
                modality="RGB",
                image_tmpl="frame{:06d}.jpg",
                transform=train_transform),
-    batch_size=20,
+    batch_size=10,
     shuffle=True,
-    num_workers=24,
+    num_workers=12,
     pin_memory=True
 )
 
@@ -53,7 +53,7 @@ val_loader = torch.utils.data.DataLoader(
                transform=val_transform),
     batch_size=10,
     shuffle=False,
-    num_workers=24,
+    num_workers=12,
     pin_memory=True
 )
 
@@ -112,7 +112,7 @@ def adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch):
 
 
 def train(train_loader, net, criterion, optimizer, epoch):
-    net = nn.DataParallel(net, device_ids=[0])
+    # net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -127,7 +127,6 @@ def train(train_loader, net, criterion, optimizer, epoch):
         inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
         # inputs,labels=Variable(inputs),Variable(labels)
         # print("epoch：", epoch, "的第", i, "个inputs", inputs.data.size(), "labels", labels.data)
-
         outputs = net(inputs)
         # print(outputs)
         # print(labels)
@@ -143,7 +142,9 @@ def train(train_loader, net, criterion, optimizer, epoch):
         loss.backward()
         optimizer.step()
         torch.cuda.empty_cache()
-
+        # for name, parms in net.named_parameters():
+        #     print('-->name:', name, '-->grad_requirs:', parms.requires_grad,
+        #           ' -->grad_value:', parms.grad , 'device:',parms.device)
         if i % 10 == 0:
             # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
             # 'Prec@3 {top3.val:.3f} ({top3.avg:.3f})\t'
@@ -208,10 +209,10 @@ def val(val_loader, net, criterion):
 
 
 def main():
-    model = MyDMSNModel()
+    model = MyDMSNModel(num_calsses=2)
     # 模型放到哪张显卡上
     model = model.cuda()
-
+    print(next(model.parameters()).device)
     # model = model.cuda()
     criterion = nn.CrossEntropyLoss().cuda()
 
@@ -220,12 +221,12 @@ def main():
     cudnn.benchmark = True
 
     policies = get_optim_policies(model)
-    learning_rate = 0.001
+    learning_rate = 0.01
     weight_decay = 0
     optimizer = optim.SGD(policies, lr=learning_rate, momentum=0.9, weight_decay=weight_decay)
 
     start_epoch = 0
-    epochs = 10
+    epochs = 20
 
     best_prec1 = 0
 

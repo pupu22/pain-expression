@@ -1,5 +1,5 @@
 import os
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 from torchvision.transforms import transforms
 import torch
 import torch.nn as nn
@@ -8,9 +8,9 @@ import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import shutil
 import numpy as np
-from torch.optim import lr_scheduler
 from torch.autograd import Variable
 import video_transforms
+from DMSN_dataset import DMSNDataSet
 
 from my_DMSN import MyDMSNModel, get_optim_policies
 
@@ -84,6 +84,8 @@ def accuracy(output, target, topk=(1,)):
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
 
+def save_temp(state, filename='NewDMSNUnbc.pth.tar'):
+    torch.save(state, filename)
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
@@ -132,7 +134,7 @@ def train(train_loader, net, criterion, optimizer, epoch):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
+        torch.cuda.empty_cache()
         if i % 10 == 0:
             # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
             # 'Prec@3 {top3.val:.3f} ({top3.avg:.3f})\t'
@@ -170,7 +172,7 @@ def val(val_loader, net, criterion):
         losses.update(loss.item(), inputs.size(0))
         top1.update(prec1[0], inputs.size(0))
         top3.update(prec3[0], inputs.size(0))
-
+        torch.cuda.empty_cache()
         if i % 10 == 0:
             print('Val: [{0}/{1}]\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
@@ -217,7 +219,7 @@ def test(test_loader, net, criterion):
 
         top1.update(prec1[0], inputs.size(0))
         top3.update(prec3[0], inputs.size(0))
-
+        torch.cuda.empty_cache()
         if i % 10 == 0:
             # print('Test: [{0}/{1}]\t'
             print('Test: [{0}/{1}]\t'
@@ -251,12 +253,12 @@ def main():
     optimizer = optim.SGD(policies, lr=learning_rate, momentum=0.9, weight_decay=0.0001)
 
     start_epoch = 0
-    epochs = 10
+    epochs = 50
     total_MSE = AverageMeter()
     total_MAE = AverageMeter()
     final_MSE = AverageMeter()
     final_MAE = AverageMeter()
-    best_prec1 = 0
+    best_MAE = 1000
 
     # resume = 'checkpoint.pth.tar'
     # if os.path.isfile(resume):
@@ -267,34 +269,36 @@ def main():
     #     optimizer.load_state_dict(checkpoint['optimizer'])
     #     print("=> loaded checkpoint '{}' (epoch {})"
     #           .format(resume, checkpoint['epoch']))
-    for i in range(24):
+    for i in range(6):
         print(i)
         train_loader = torch.utils.data.DataLoader(
             # P3DDataSet("p3dtrain_01.lst",
-            DMSNDataSet("UNBCtrain.txt",
+            DMSNDataSet("UNBCtext.txt",
                         length=16,
                         modality="RGB",
                         image_tmpl="frame{:06d}.jpg",
                         transform=train_transform,
                         data_type='train',
                         index=i),
-            batch_size=18,
+            batch_size=6,
             shuffle=True,
-            num_workers=24,
-            pin_memory=True
+            num_workers=16,
+            pin_memory=True,
+            drop_last=True
         )
         test_loader = torch.utils.data.DataLoader(
-            DMSNDataSet("UNBCtrain.txt",
+            DMSNDataSet("UNBCtext.txt",
                         length=16,
                         modality="RGB",
                         image_tmpl="frame{:06d}.jpg",
                         transform=train_transform,
                         data_type='test',
                         index=i),
-            batch_size=12,
+            batch_size=6,
             shuffle=False,
-            num_workers=24,
-            pin_memory=True
+            num_workers=16,
+            pin_memory=True,
+            drop_last=True
         )
         for epoch in range(start_epoch, epochs):
             # adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch)
@@ -303,9 +307,15 @@ def main():
             MSE, MAE = test(test_loader, model, criterion)
             total_MSE.update(MSE)
             total_MAE.update(MAE)
+            torch.cuda.empty_cache()
             print('total_MSE {total_MSE.val:.3f}({total_MSE.avg:.3f})\t'
                   'total_MAE {total_MAE.val:.3f}({total_MAE.avg:.3f})'.format(
                 total_MSE=total_MSE, total_MAE=total_MAE))
+            save_temp({
+                'epoch': epoch + 1,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            })
 
         # 留一主题交叉验证的每一次的MSE和MAE(val)，以及他们的平均值(avg)
         final_MSE.update(total_MSE.avg)
@@ -313,14 +323,15 @@ def main():
         print('final_MSE {final_MSE.val:.3f}({final_MSE.avg:.3f})\t'
               'final_MAE {final_MAE.val:.3f}({final_MAE.avg:.3f})'.format(
             final_MSE=final_MSE, final_MAE=final_MAE))
-        # is_best = prec1 > best_prec1
-        # best_prec1 = max(prec1, best_prec1)
-        # save_checkpoint({
-        #     'epoch': epoch + 1,
-        #     'state_dict': model.state_dict(),
-        #     'best_prec1': best_prec1,
-        #     'optimizer': optimizer.state_dict(),
-        # }, is_best)
+
+        is_best = final_MSE.avg < best_MAE
+        best_prec1 = min(final_MSE.avg, best_MAE)
+        save_checkpoint({
+            'epoch': i + 1,
+            'state_dict': model.state_dict(),
+            'best_prec1': best_prec1,
+            'optimizer': optimizer.state_dict(),
+        }, is_best)
 
 
 if __name__ == '__main__':

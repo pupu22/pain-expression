@@ -59,9 +59,9 @@ class VggDataset(data.Dataset):
 
     def _parse_list(self):
         data1 = pd.read_csv('/home/cike/pythonGC/P3D/VGG_Face2/identity_meta.csv', encoding='ISO-8859-1',
-                            usecols=['Class_ID', ' Flag'])
+                            usecols=['Class_ID', ' Gender'])
         self.class_list = data1['Class_ID']
-        self.label_list = data1[' Flag']
+        self.label_list = data1[' Gender']
         self.clip_list = [ClipRecord(x.strip().split(' ')) for x in open(self.list_file)]
 
     def __getitem__(self, index):
@@ -76,15 +76,19 @@ class VggDataset(data.Dataset):
             img_path = '/home/cike/pythonGC/P3D/VGG_Face2/test/' + record.path
         img = self._load_image(img_path)
         paths = record.path.split('/')
+        # img = self._load_image(record.path)
+        img = img.resize((160, 160))
         for index in range(len(self.class_list)):
             if self.class_list[index] == paths[0]:
                 label = self.label_list[index]
-        # img = self._load_image(record.path)
-        img = img.resize((160, 160))
-
+                if label == ' m':
+                    label = 0
+                else:
+                    label = 1
         for i in range(self.length):
             clip.append(img)
         clip = self.transform(clip)
+
         return clip, label
 
     def __len__(self):

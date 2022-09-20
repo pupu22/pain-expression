@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import numpy as np
 import torch.nn.functional as F
+from torch.nn import init
 
 
 def conv_T(in_planes, out_planes, stride=(1, 1, 1), padding=(0, 0, 1)):
@@ -11,7 +12,16 @@ def conv_T(in_planes, out_planes, stride=(1, 1, 1), padding=(0, 0, 1)):
 def conv_S(in_planes, out_planes, stride=(1, 1, 1), padding=(1, 1, 0)):
     return nn.Conv3d(in_planes, out_planes, kernel_size=(3, 3, 1), stride=stride, padding=padding, bias=False)
 
-
+def initNetParams(net):
+    '''Init net parameters.'''
+    for m in net.modules():
+        if isinstance(m, nn.Conv3d):
+            init.xavier_uniform_(m.weight)
+        elif isinstance(m, nn.BatchNorm3d):
+            init.constant_(m.weight, 1)
+            init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            init.normal_(m.weight, std=1e-3)
 '''
     DMSN中Bottleneck表示DMSN变体的基本结构
     Block的各个plane值：
@@ -159,10 +169,10 @@ class Bottleneck(nn.Module):
         ST5 = self.conv8(T5)
         ST5 = self.bn8(ST5)
         ST5 = self.relu(ST5)
-        # ST4 = np.concatenate(ST3, ST4)
-        ST5 = np.concatenate((ST1.cpu().detach(), ST3.cpu().detach(), ST5.cpu().detach()), axis=1)
-        # ST4 = np.concatenate((ST1, ST2, ST3, ST4), axis=1)
-        ST5 = torch.from_numpy(ST5).cuda()
+
+        # ST5 = np.concatenate((ST1.cpu().detach(), ST3.cpu().detach(), ST5.cpu().detach()), axis=1)
+        ST5 = torch.cat([ST1, ST3, ST5], dim=1)
+        # ST5 = torch.from_numpy(ST5).cuda()
         # print(ST5.size())
         return ST5
 
@@ -195,8 +205,9 @@ class Bottleneck(nn.Module):
         ST4 = self.bn9(ST4)
         ST4 = self.relu(ST4)
 
-        ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4).cuda()
+        # ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
+        # ST4 = torch.from_numpy(ST4).cuda()
+        ST4 = torch.cat([ST1, ST2, ST3, ST4], dim=1)
 
         return ST4
 
@@ -234,8 +245,9 @@ class Bottleneck(nn.Module):
         ST4 = self.bn5(ST4)
         ST4 = self.relu(ST4)
 
-        ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4).cuda()
+        # ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
+        # ST4 = torch.from_numpy(ST4).cuda()
+        ST4 = torch.cat([ST1, ST2, ST3, ST4], dim=1)
 
         return ST4
 
@@ -325,7 +337,11 @@ class my_DMSN(nn.Module):
         # out = torch.flatten(out, 2)
         out = self.fc(out)
 
-        out = F.softmax(out, dim=0)
+        # print('out:', out, "out.size:", out.size(),"len:", len(out.size()))
+        # if len(out.size()) == 1:
+        #     out = F.softmax(out, dim=0)
+        # else:
+        out = F.softmax(out, dim=1)
 
         return out
 
@@ -427,8 +443,9 @@ class my_DMSN(nn.Module):
         return nn.Sequential(*block_list)
 
 
-def MyDMSNModel(**kwargs):
-    model = my_DMSN(Bottleneck, [3, 4, 6, 3], **kwargs)
+def MyDMSNModel(num_calsses = 6):
+    model = my_DMSN(Bottleneck, [3, 4, 6, 3], num_classes=num_calsses)
+    initNetParams(model)
     return model
 
 

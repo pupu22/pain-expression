@@ -1,7 +1,8 @@
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from torch.autograd import Variable
@@ -12,7 +13,6 @@ from DMSN import DMSNModel, get_optim_policies
 
 import video_transforms
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '6'
 train_transform = video_transforms.Compose(
     [
         video_transforms.RandomResizedCrop(160),
@@ -21,7 +21,15 @@ train_transform = video_transforms.Compose(
         video_transforms.Normalize((0.485, 0.456, 0.406),
                                    (0.229, 0.224, 0.225))]
 )
-
+# train_transform = transforms.Compose(
+#     [
+#         transforms.RandomResizedCrop(160),
+#         transforms.RandomHorizontalFlip(p=0.5),
+#         transforms.RandomRotation(30, resample=False, expand=False, center=None ),
+#         transforms.ToTensor(),
+#         transforms.Normalize((0.485, 0.456, 0.406),
+#                                    (0.229, 0.224, 0.225))]
+# )
 val_transform = video_transforms.Compose(
     [
         video_transforms.Resize((160, 160)),
@@ -38,9 +46,9 @@ train_loader = torch.utils.data.DataLoader(
                modality="RGB",
                image_tmpl="frame{:06d}.jpg",
                transform=train_transform),
-    batch_size=20,
+    batch_size=10,
     shuffle=True,
-    num_workers=24,
+    num_workers=16,
     pin_memory=True
 )
 
@@ -53,7 +61,7 @@ val_loader = torch.utils.data.DataLoader(
                transform=val_transform),
     batch_size=10,
     shuffle=False,
-    num_workers=24,
+    num_workers=16,
     pin_memory=True
 )
 
@@ -112,7 +120,7 @@ def adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch):
 
 
 def train(train_loader, net, criterion, optimizer, epoch):
-    net = nn.DataParallel(net, device_ids=[6])
+    net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -123,14 +131,18 @@ def train(train_loader, net, criterion, optimizer, epoch):
     for i, data in enumerate(train_loader, 0):
         inputs, labels = data
         # 数据放到哪张显卡上
-        inputs, labels = Variable(inputs.to(device=6)), Variable(labels.to(device=6))
+        # labels = torch.stack(labels, dim=1)
+        inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
+
         # inputs,labels=Variable(inputs),Variable(labels)
         # print("epoch：", epoch, "的第", i, "个inputs", inputs.data.size(), "labels", labels.data)
 
+
         outputs = net(inputs)
-        # print(outputs)
-        # print(labels)
+        # print(labels.size())
+        # print(outputs.size())
         loss = criterion(outputs, labels)
+        # print(loss)
 
         prec1, prec3 = accuracy(outputs.data, labels.data, topk=(1, 2))
 
@@ -142,12 +154,15 @@ def train(train_loader, net, criterion, optimizer, epoch):
         loss.backward()
         optimizer.step()
         torch.cuda.empty_cache()
+        # for name, parms in net.named_parameters():
+        #     print('-->name:', name, '-->grad_requirs:', parms.requires_grad,
+        #           ' -->grad_value:', parms.grad , 'device:',parms.device)
 
         if i % 10 == 0:
             # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
             # 'Prec@3 {top3.val:.3f} ({top3.avg:.3f})\t'
             print('Epoch: [{0}][{1}/{2}]\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'Loss {loss.val:.10f} ({loss.avg:.10f})\t'
                   'lr {lr}\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@3 {top3.val:.3f} ({top3.avg:.3f})'.format(
@@ -169,7 +184,7 @@ def train(train_loader, net, criterion, optimizer, epoch):
 
 def val(val_loader, net, criterion):
     # 指定显卡
-    net = nn.DataParallel(net, device_ids=[6])
+    net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -179,6 +194,7 @@ def val(val_loader, net, criterion):
 
     for i, data in enumerate(val_loader, 0):
         inputs, labels = data
+
         # 数据放到哪张显卡上
         inputs, labels = Variable(inputs.to(device=6)), Variable(labels.to(device=6))
 
@@ -207,19 +223,19 @@ def val(val_loader, net, criterion):
 
 
 def main():
-    model = DMSNModel()
+    model = DMSNModel(num_classes = 2)
     # 模型放到哪张显卡上
-    model = model.to(device=6)
+    model = model.cuda()
 
     # model = model.cuda()
-    criterion = nn.CrossEntropyLoss().to(device=6)
+    criterion = nn.CrossEntropyLoss().cuda()
 
     # criterion = nn.CrossEntropyLoss()
 
     cudnn.benchmark = True
 
     policies = get_optim_policies(model)
-    learning_rate = 0.001
+    learning_rate = 0.01
     weight_decay = 0
     optimizer = optim.SGD(policies, lr=learning_rate, momentum=0.9, weight_decay=weight_decay)
 

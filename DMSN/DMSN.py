@@ -1,5 +1,8 @@
+import math
+
 import torch
 from torch import nn
+from torch.nn import init
 import numpy as np
 import torch.nn.functional as F
 
@@ -11,7 +14,27 @@ def conv_T(in_planes, out_planes, stride=(1, 1, 1), padding=(0, 0, 1)):
 def conv_S(in_planes, out_planes, stride=(1, 1, 1), padding=(1, 1, 0)):
     return nn.Conv3d(in_planes, out_planes, kernel_size=(3, 3, 1), stride=stride, padding=padding, bias=False)
 
+# def weigth_init(m):
+#    if isinstance(m, nn.Conv3d):
+#        init.xavier_uniform_(m.weight.data)
+#        init.constant_(m.bias.data,0.1)
+#    elif isinstance(m, nn.BatchNorm3d):
+#        m.weight.data.fill_(1)
+#        m.bias.data.zero_()
+#    elif isinstance(m, nn.Linear):
+#        m.weight.data.normal_(0,0.01)
+#        m.bias.data.zero_()
 
+def initNetParams(net):
+    '''Init net parameters.'''
+    for m in net.modules():
+        if isinstance(m, nn.Conv3d):
+            init.xavier_uniform(m.weight)
+        elif isinstance(m, nn.BatchNorm3d):
+            init.constant_(m.weight, 1)
+            init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            init.normal_(m.weight, std=1e-3)
 '''
     DMSN中Bottleneck表示DMSN变体的基本结构
     Block的各个plane值：
@@ -110,7 +133,7 @@ class Bottleneck(nn.Module):
 
         self.conv10 = nn.Conv3d(midplane * self.extention, midplane * self.extention, kernel_size=1, stride=1)
         self.bn10 = nn.BatchNorm3d(midplane * self.extention)
-        self.relu = nn.ReLU(inplace=False)
+        self.relu = nn.ReLU(inplace=True)
 
         self.downsample = downsample
         self.stride = 1
@@ -157,9 +180,10 @@ class Bottleneck(nn.Module):
         ST4 = self.relu(ST4)
         # print(ST4.size())
         # ST4 = np.concatenate(ST3, ST4)
-        ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
+        # ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
+        ST4 = torch.cat([ST1, ST2, ST3, ST4], dim=1)
         # ST4 = np.concatenate((ST1, ST2, ST3, ST4), axis=1)
-        ST4 = torch.from_numpy(ST4).to(device=6)
+        # ST4 = torch.from_numpy(ST4).to(device=6)
 
         return ST4
 
@@ -191,9 +215,9 @@ class Bottleneck(nn.Module):
         ST4 = self.conv9(Y4)
         ST4 = self.bn9(ST4)
         ST4 = self.relu(ST4)
-
-        ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4).to(device=6)
+        ST4 = torch.cat([ST1, ST2, ST3, ST4], dim=1)
+        # ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
+        # ST4 = torch.from_numpy(ST4).to(device=6)
 
         return ST4
 
@@ -231,8 +255,9 @@ class Bottleneck(nn.Module):
         ST4 = self.bn5(ST4)
         ST4 = self.relu(ST4)
 
-        ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
-        ST4 = torch.from_numpy(ST4).to(device=6)
+        ST4 = torch.cat([ST1, ST2, ST3, ST4], dim=1)
+        # ST4 = np.concatenate((ST1.cpu().detach(), ST2.cpu().detach(), ST3.cpu().detach(), ST4.cpu().detach()), axis=1)
+        # ST4 = torch.from_numpy(ST4).to(device=6)
 
         return ST4
 
@@ -322,7 +347,11 @@ class DMSN(nn.Module):
         # out = torch.flatten(out, 2)
         out = self.fc(out)
 
-        out = F.softmax(out, dim=0)
+        # print("out:", out, "out.size:", out.size(), "len:", len(out.size()))
+        if len(out.size()) == 1:
+            out = F.softmax(out, dim=0)
+        else:
+            out = F.softmax(out, dim=1)
 
         return out
 
@@ -424,8 +453,16 @@ class DMSN(nn.Module):
         return nn.Sequential(*block_list)
 
 
-def DMSNModel(**kwargs):
-    model = DMSN(Bottleneck, [3, 4, 6, 3], **kwargs)
+def DMSNModel( pretrained = False, **kwargs):
+    model = DMSN(Bottleneck, [3, 4, 6, 3], num_classes=6)
+    initNetParams(model)
+    if pretrained == True:
+        pretrained_file = '/home/cike/pythonGC/DMSNBest.pth.tar'
+        pretrained_dict = torch.load(pretrained_file)
+        weights = model.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if (k in weights and 'fc' not in k)}
+        weights.update(pretrained_dict)
+        model.load_state_dict(weights)
     return model
 
 
@@ -505,13 +542,13 @@ def get_optim_policies(model=None, modality='RGB', enable_pbn=True):
 
 
 # resnet = DMSN(Bottleneck, [3, 4, 6, 3])
-# resnet = resnet.cuda()
+# resnet = resnet.to(device = 6)
 # data = torch.autograd.Variable(
-#     torch.rand(8, 3, 16, 112, 112)).cuda()  # if modality=='Flow', please change the 2nd dimension 3==>2
+#     torch.rand(8, 3, 16, 112, 112)).to(device = 6) # if modality=='Flow', please change the 2nd dimension 3==>2
 # out = resnet(data)
 # print(out.size(), out)
 
-# # 向网络输入一个1，3，224，224的tensor
+# 向网络输入一个1，3，224，224的tensor
 # x = torch.randn(8, 3, 16, 112, 112)
 # x = resnet(x)
 # print(x.shape)
