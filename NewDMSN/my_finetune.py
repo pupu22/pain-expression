@@ -2,8 +2,12 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '4,5'
 from torchvision.transforms import transforms
 import torch
+import argparse
 import torch.nn as nn
+import torch.multiprocessing as mp
 import torch.nn.functional as F
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import shutil
@@ -14,7 +18,15 @@ from DMSN_dataset import DMSNDataSet
 
 from my_DMSN import MyDMSNModel, get_optim_policies
 
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+def setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = '222.201.134.236'
+    os.environ['MASTER_PORT'] = '2088'
+
+    # initialize the process group
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+
+def cleanup():
+    dist.destroy_process_group()
 
 train_transform = video_transforms.Compose(
     [
@@ -100,6 +112,18 @@ def adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch):
         param_group['lr'] = lr * param_group['lr_mult']
         param_group['weight_decay'] = weight_decay * param_group['decay_mult']
 
+def reduce_tensor(tensor, world_size):
+    # 用于平均所有gpu上的运行结果，比如loss
+    # Reduces the tensor data across all machines
+    # Example: If we print the tensor, we can get:
+    # tensor(334.4330, device='cuda:1') *********************, here is cuda:  cuda:1
+    # tensor(359.1895, device='cuda:3') *********************, here is cuda:  cuda:3
+    # tensor(263.3543, device='cuda:2') *********************, here is cuda:  cuda:2
+    # tensor(340.1970, device='cuda:0') *********************, here is cuda:  cuda:0
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.reduce_op.SUM)
+    rt /= world_size
+    return rt
 
 def train(train_loader, net, criterion, optimizer, epoch):
     # net = nn.DataParallel(net, device_ids=[0])
@@ -109,8 +133,9 @@ def train(train_loader, net, criterion, optimizer, epoch):
     top3 = AverageMeter()
 
     net = net.train()
+    total_loss = 0
 
-    for i, data in enumerate(train_loader, 0):
+    for batch_idx, (i, data) in enumerate(train_loader, 0):
         inputs, labels = data
         # 数据放到哪张显卡上
 
@@ -134,15 +159,21 @@ def train(train_loader, net, criterion, optimizer, epoch):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        reduced_loss = reduce_tensor(loss.data, world_size)
+        total_loss += reduced_loss.item()
+
+        training_loss = (total_loss / (batch_idx + 1))
+
         torch.cuda.empty_cache()
         # if i % 10 == 0:
         # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
         # 'Prec@3 {top3.val:.3f} ({top3.avg:.3f})\t'
         print('Epoch: [{0}][{1}/{2}]\t'
               'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+              'training_loss {training_loss:8.5f}\t'
               'lr {lr}'.format(
-            epoch, i, len(train_loader), loss=losses,
-            lr=optimizer.param_groups[0]['lr']))
+            epoch, i, len(train_loader), loss=losses, training_loss = training_loss,lr=optimizer.param_groups[0]['lr']))
 
     print('Finished Training')
 
@@ -237,16 +268,18 @@ def test(test_loader, net, criterion):
     return MSE.avg, MAE.avg
 
 
-def main():
-    # model = MyDMSNModel().cuda()
-    model = MyDMSNModel().cuda()
-    model = nn.DataParallel(model, device_ids=[0])
-    # 模型放到哪张显卡上
-    # model = nn.DataParallel(model, device_ids=[0])
-    # model = model.to(device=7)
-    criterion = nn.CrossEntropyLoss().cuda()
+def main(rank, world_size):
+    print(f"Running basic DDP example on rank {rank}.")
+    setup(rank, world_size)
 
-    # criterion = nn.CrossEntropyLoss()
+    torch.manual_seed(18)
+    torch.cuda.manual_seed_all(18)
+    torch.backends.cudnn.deterministic = True
+    torch.cuda.set_device(rank) # 这里设置 device ，后面可以直接使用 data.cuda(),否则需要指定 rank
+
+    model = MyDMSNModel().cuda()
+    ddp_model = DDP(model, device_ids=[rank])
+    criterion = nn.CrossEntropyLoss()
 
     cudnn.benchmark = True
 
@@ -273,40 +306,32 @@ def main():
     #           .format(resume, checkpoint['epoch']))
     for i in range(6):
         print(i)
-        train_loader = torch.utils.data.DataLoader(
-            # P3DDataSet("p3dtrain_01.lst",
-            DMSNDataSet("UNBCtext2.txt",
+        train_dataset = DMSNDataSet("UNBCtext2.txt",
                         length=16,
                         modality="RGB",
                         image_tmpl="frame{:06d}.jpg",
                         transform=train_transform,
                         data_type='train',
-                        index=i),
-            batch_size=6,
-            shuffle=True,
-            num_workers=4,
-            pin_memory=True,
-            drop_last=True
-        )
-        test_loader = torch.utils.data.DataLoader(
-            DMSNDataSet("UNBCtext2.txt",
+                        index=i)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=6,num_works = 4, drop_last = True, sampler=train_sampler)
+
+        test_dataset = DMSNDataSet("UNBCtext2.txt",
                         length=16,
                         modality="RGB",
                         image_tmpl="frame{:06d}.jpg",
                         transform=train_transform,
-                        data_type='test',
-                        index=i),
-            batch_size=6,
-            shuffle=False,
-            num_workers=4,
-            pin_memory=True,
-            drop_last=True
-        )
+                        data_type='train',
+                        index=i)
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset)
+        test_loader = torch.utils.data.DataLoader(train_dataset, batch_size=6,num_works = 4, drop_last = True, sampler=test_sampler)
+
         for epoch in range(start_epoch, epochs):
             # adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch)
             print("start")
-            train(train_loader, model, criterion, optimizer, epoch)
-            MSE, MAE = test(test_loader, model, criterion)
+            train_sampler.set_epoch(epoch)
+            train(train_loader, ddp_model, criterion, optimizer, epoch)
+            MSE, MAE = test(test_loader, ddp_model, criterion)
             total_MSE.update(MSE)
             total_MAE.update(MAE)
             torch.cuda.empty_cache()
@@ -337,5 +362,10 @@ def main():
 
 
 if __name__ == '__main__':
-    torch.multiprocessing.set_start_method('spawn')
-    main()
+    n_gpus = torch.cuda.device_count()
+    assert n_gpus >= 2, f"Requires at least 2 GPUs to run, but got {n_gpus}"
+    world_size = n_gpus
+    mp.spawn(main,
+             args=(world_size,),
+             nprocs=world_size,
+             join=True)
