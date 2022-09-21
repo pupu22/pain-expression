@@ -1,7 +1,7 @@
 import os
 
 # # 只用3号卡
-os.environ['CUDA_VISIBLE_DEVICES'] = '6'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 from torchvision.transforms import transforms
 import torch
 import torch.nn as nn

@@ -457,8 +457,9 @@ def DMSNModel( pretrained = False, **kwargs):
     model = DMSN(Bottleneck, [3, 4, 6, 3], num_classes=6)
     initNetParams(model)
     if pretrained == True:
-        pretrained_file = '/home/cike/pythonGC/DMSNBest.pth.tar'
-        pretrained_dict = torch.load(pretrained_file)
+        # best.pth.tar为DMSN在疼痛数据集上训练结果
+        pretrained_file = '/home/cike/pythonGC/DMSN/best.pth.tar'
+        pretrained_dict = torch.load(pretrained_file, map_location={'cuda:0'})
         weights = model.state_dict()
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if (k in weights and 'fc' not in k)}
         weights.update(pretrained_dict)

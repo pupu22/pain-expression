@@ -443,9 +443,18 @@ class my_DMSN(nn.Module):
         return nn.Sequential(*block_list)
 
 
-def MyDMSNModel(num_calsses = 6):
+def MyDMSNModel(pretrained = False, num_calsses = 6):
     model = my_DMSN(Bottleneck, [3, 4, 6, 3], num_classes=num_calsses)
     initNetParams(model)
+    if pretrained == True:
+        # best.pth.tar为DMSN在疼痛数据集上训练结果
+        pretrained_file = '/home/cike/NewDMSN/best.pth.tar'
+        pretrained_dict = torch.load(pretrained_file)
+        weights = model.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if (k in weights and 'fc' not in k)}
+        weights.update(pretrained_dict)
+        model.load_state_dict(weights)
+        print("pretrained true")
     return model
 
 

@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '4,5'
 from torchvision.transforms import transforms
 import torch
 import torch.nn as nn
@@ -102,7 +102,7 @@ def adjust_learning_rate(learning_rate, weight_decay, optimizer, epoch):
 
 
 def train(train_loader, net, criterion, optimizer, epoch):
-    net = nn.DataParallel(net, device_ids=[0])
+    # net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -135,21 +135,21 @@ def train(train_loader, net, criterion, optimizer, epoch):
         loss.backward()
         optimizer.step()
         torch.cuda.empty_cache()
-        if i % 10 == 0:
-            # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-            # 'Prec@3 {top3.val:.3f} ({top3.avg:.3f})\t'
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'lr {lr}'.format(
-                epoch, i, len(train_loader), loss=losses,
-                lr=optimizer.param_groups[0]['lr']))
+        # if i % 10 == 0:
+        # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+        # 'Prec@3 {top3.val:.3f} ({top3.avg:.3f})\t'
+        print('Epoch: [{0}][{1}/{2}]\t'
+              'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+              'lr {lr}'.format(
+            epoch, i, len(train_loader), loss=losses,
+            lr=optimizer.param_groups[0]['lr']))
 
     print('Finished Training')
 
 
 def val(val_loader, net, criterion):
     # 指定显卡
-    net = nn.DataParallel(net, device_ids=[0])
+    # net = nn.DataParallel(net, device_ids=[0,1])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -188,7 +188,7 @@ def val(val_loader, net, criterion):
 
 def test(test_loader, net, criterion):
     # 指定显卡
-    net = nn.DataParallel(net, device_ids=[0])
+    # net = nn.DataParallel(net, device_ids=[0])
 
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -238,7 +238,9 @@ def test(test_loader, net, criterion):
 
 
 def main():
+    # model = MyDMSNModel().cuda()
     model = MyDMSNModel().cuda()
+    model = nn.DataParallel(model, device_ids=[0])
     # 模型放到哪张显卡上
     # model = nn.DataParallel(model, device_ids=[0])
     # model = model.to(device=7)
@@ -273,7 +275,7 @@ def main():
         print(i)
         train_loader = torch.utils.data.DataLoader(
             # P3DDataSet("p3dtrain_01.lst",
-            DMSNDataSet("UNBCtext.txt",
+            DMSNDataSet("UNBCtext2.txt",
                         length=16,
                         modality="RGB",
                         image_tmpl="frame{:06d}.jpg",
@@ -282,12 +284,12 @@ def main():
                         index=i),
             batch_size=6,
             shuffle=True,
-            num_workers=16,
+            num_workers=4,
             pin_memory=True,
             drop_last=True
         )
         test_loader = torch.utils.data.DataLoader(
-            DMSNDataSet("UNBCtext.txt",
+            DMSNDataSet("UNBCtext2.txt",
                         length=16,
                         modality="RGB",
                         image_tmpl="frame{:06d}.jpg",
@@ -296,7 +298,7 @@ def main():
                         index=i),
             batch_size=6,
             shuffle=False,
-            num_workers=16,
+            num_workers=4,
             pin_memory=True,
             drop_last=True
         )
